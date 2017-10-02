@@ -18,11 +18,12 @@
 ####################################################################
 
 import math
+import time
 
 ####################################################################
 # The Lightweight Matrix Library, Python 3+
 # (c) 2017 Haipeng Lin <linhaipeng@pku.edu.cn>
-# Version 1710.01
+# Version 1710.02
 #
 # edu.jimmielin.pylitematrix
 #
@@ -73,16 +74,23 @@ class Matrix:
 
     ## Matrix Manipulation Functions
     # map(fn)
-    # equiv. fmap fn matrix
-    def map(self, fn):
+    # equiv. fmap fn matrix, return a copy (for in-place changes, use mapInplace, which is map! ruby)
+    def mapInplace(self, fn):
         for i, row in enumerate(self.internal):
             for j, val in enumerate(row):
                 self.internal[i][j] = fn(val) # because we are not by reference
         return self
 
+    def map(self, fn):
+        mp = Matrix(1, 1, lambda i, j: 0)
+        mp.internal = [xs[:] for xs in self.internal]
+        # deepcopy because here it is a reference now by default, stupid languages with side effects
+        mp.mapInplace(fn)
+        return mp
+
     # toList(matrix)
     # Get elements of matrix stored in a list.
-    def toList(self):       return sum(self.internal, [])
+    def toList(self):  return sum(self.internal, [])
 
     # dotproduct_(list1, list2)
     # Multiplies two *lists* of the *same* length
@@ -132,6 +140,34 @@ class Matrix:
             col.append(row[c-1])
         return col
 
+    # subMatrix(s_r, e_r, s_c, e_c) (starting/ending row/column)
+    # extract a submatrix given row and column limits, e.g.
+    # subMatrix(1, 2, 2, 3) (1 2 3) = (2 3)
+    #                       (4 5 6) = (5 6)
+    #                       (7 8 9)
+    # FIXME: this function is currently unsafe
+    def subMatrix(self, sr, er, sc, ec):
+        # M nrows ncols rowOffset colOffset vcols mvect
+        # M (r2-r1+1) (c2-c1+1) (ro+r1-1) (co+c1-1) w v
+        return Matrix(er-sr+1, ec-sc+1, lambda i, j: self.internal[sr+i-2][sc+j-2])
+
+    # splitBlocks(self, r, c) = (TL, TR, BL, BR) 4-tuple Matrix
+    # makes a block-partition matrix using given element (r,c) as reference,
+    # with the reference element staying in the bottom-right corner of the first split.
+    #                    (             )   (      |      )
+    #                    (             )   ( ...  | ...  )
+    #                    (    x        )   (    x |      )
+    # splitBlocks(r,c) = (             ) = (-------------) , where x = a(r,c)
+    #                    (             )   (      |      )
+    #                    (             )   ( ...  | ...  )
+    #                    (             )   (      |      )
+    # Note that some blocks can end up empty. We use the following notation for these blocks:
+    # ( TL | TR )
+    # (---------)
+    # ( BL | BR )
+    def splitBlocks(self, r, c):
+        return (self.subMatrix(1, r, 1, c), self.subMatrix(1, r, c + 1, self.ncols()), self.subMatrix(r + 1, self.nrows(), 1, c), self.subMatrix(r + 1, self.nrows(), c + 1, self.nrows()))
+
     # elem(i, j)
     # Get [i, j] in matrix
     def elem(self, i, j):
@@ -147,7 +183,11 @@ class Matrix:
     # multStd_ a@(M n m _ _ _ _) b@(M _ m' _ _ _ _) = 
     #    matrix n m' $ \(i,j) -> sum [ a !. (i,k) * b !. (k,j) | k <- [1 .. m] ]
     def __mul__(self, m2):
-        return Matrix(self.nrows(), m2.ncols(), lambda i, j: self.dotProduct_(self.getRow(i), m2.getCol(j)))
+        start_time = time.time()
+        res = Matrix(self.nrows(), m2.ncols(), lambda i, j: self.dotProduct_(self.getRow(i), m2.getCol(j)))
+        elapsed_time = time.time() - start_time
+        print("Matrix Multiplication ", self.nrows(), "x", m2.ncols(), " R: Execution time is ", elapsed_time, " seconds.", flush=True)
+        return res
 
     # add
     # O(m*n) rather than naive implementation
@@ -175,6 +215,13 @@ class Matrix:
         table = [form.format(*row) for row in s]
         return ('\n'.join(table))
 
+    ## Matrix Element Functions
+    # max() get maximum element from matrix.
+    def max(self): return max(self.toList())
+
+    # min() get miminum element from matrix.
+    def min(self): return min(self.toList())
+
 # Initialize a Matrix "Prototype"
 # Seriously, this is insane - I'm using Javascript paradigms
 # in Python.
@@ -194,5 +241,71 @@ def vectorB(n):
     else:
         return Matrix(n, 1, lambda m, _: 2.5 if(m == 1 or m == n) else (1.0 if (m == n/2 or m == n/2+1) else 1.5))
 
+# The Conjugate Gradient Method, w/o Improved Algorithm
 def conjGradient(A, b, x0):
-    return False
+    rc = b - A * x0
+    if(rc.max() == 0):
+        return x0
+    pc = rc
+    k  = 0
+    x  = x0
+    while(k < 1000):
+        alpha_factor = (rc.transpose() * A * pc).elem(1, 1)
+        if(alpha_factor == 0):
+            break
+        alpha = (rc.transpose() * pc).map(lambda x: x/alpha_factor).elem(1, 1)
+        x = x + pc.map(lambda x: x * alpha)
+        beta_factor  = (pc.transpose() * A * pc).elem(1, 1) * -1
+        rc = rc - (A * pc).map(lambda x: x * alpha)
+        if(beta_factor == 0):
+            break
+        beta = (rc.transpose() * A * pc).map(lambda x: x/beta_factor).elem(1, 1)
+        pc = rc + pc.map(lambda x: x * beta)
+        k = k + 1
+        print("*")
+    print("debug from conjGradient: did ", k, "iterations")
+    return x
+
+# The Conjugate Gradient Method, w/ Improved Algorithm
+# Generally is 50% faster than conjGradient
+def conjGradient2(A, b, x0):
+    rc = b - A * x0
+    if(rc.max() == 0):
+        return x0
+    pc = rc
+    k  = 0
+    x  = x0
+    while(k < 1000):
+        print("*", end="", flush=True) # iterator diagnostic
+        alpha_factor = (pc.transpose() * A * pc).elem(1, 1)
+        if(alpha_factor == 0):
+            break
+        alpha = (rc.transpose() * rc).map(lambda x: x/alpha_factor).elem(1, 1)
+        x = x + pc.map(lambda x: x * alpha)
+        beta_factor  = (rc.transpose() * rc).elem(1, 1)
+        rc = rc - (A * pc).map(lambda x: x * alpha)
+        if(beta_factor == 0):
+            break
+        beta = (rc.transpose() * rc).map(lambda x: x/beta_factor).elem(1, 1)
+        pc = rc + pc.map(lambda x: x * beta)
+        k = k + 1
+    print("debug from conjGradient2: did ", k, "iterations")
+    return x
+
+# Actual Code for Exercise 6
+def ex6(n):
+    print(conjGradient(matrixA(n), vectorB(n), Matrix(n, 1, lambda i, j: 0)))
+
+def ex6_2(n):
+    print(conjGradient2(matrixA(n), vectorB(n), Matrix(n, 1, lambda i, j: 0)))
+
+
+#start_time = time.time()
+#ex6(100)
+#elapsed_time = time.time() - start_time
+#print("Execution time is ", elapsed_time, " seconds.")
+
+#start_time = time.time()
+#ex6_2(10000)
+#elapsed_time = time.time() - start_time
+#print("Execution time is ", elapsed_time, " seconds.")

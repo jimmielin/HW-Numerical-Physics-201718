@@ -91,13 +91,12 @@ def solveTri(M, b):
 	X[0] = D[n]
 	for i in range(2, n+1):
 		j = n+1-i # back indexes
-		print(j)
 		X[i-1] = D[j] - C[j] * X[i-2]
 
 	X.reverse()
-	print(X)
+	return mp.fromList_(n, 1, X)
 
 # Some testing data.
-#testtrim = mp.fromList_(4, 4, [1,5,0,0,8,2,6,0,0,9,3,7,0,0,10,4])
-#testtrib = mp.fromList_(4, 1, [1,1,1,1])
-#print(testtrim)
+testtrim = mp.fromList_(4, 4, [1,5,0,0,8,2,6,0,0,9,3,7,0,0,10,4])
+testtrib = mp.fromList_(4, 1, [1,1,1,1])
+print(solveTri(testtrim, testtrib))

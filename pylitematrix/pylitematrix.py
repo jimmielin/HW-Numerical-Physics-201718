@@ -7,7 +7,6 @@
 #
 # This library is fully written by myself to provide for some basic
 # matrix operation functions for homework writing.
-# It is included inline for readability.
 #
 # Loosely based on the Haskell Matrix Functions written by myself,
 # used for homework assignments in the "Numerical Methods B" course
@@ -42,7 +41,7 @@ class Matrix:
 
     # diag(n, list)
     # Returns a diagonal matrix with first n elems from list taken to construct
-    def diag_(self, n, list):   return Matrix(n, n, lambda i, j: list[i] if i == j else 0)
+    def diag_(self, n, list):   return Matrix(n, n, lambda i, j: list[i-1] if i == j else 0)
 
     # fromList(rows, cols, list)
     # From a list with at least rows*cols elements generate a matrix left-to-right, top-to-down

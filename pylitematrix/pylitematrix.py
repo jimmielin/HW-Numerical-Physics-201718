@@ -73,7 +73,7 @@ class Matrix:
 
     # dotproduct_(list1, list2)
     # Multiplies two *lists* of the *same* length
-    def dotProduct_(self, l1, l2):
+    def dotProduct__(self, l1, l2):
         if(len(l1) != len(l2)):
             raise ValueError("Attempted to multiply two different-sized lists", l1, l2)
         x = 0
@@ -81,16 +81,16 @@ class Matrix:
             x += l1[i] * l2[i]
         return x
 
-    # Multiplies two *matrices* representing row/col vectors
+    # Multiplies two *matrices* representing row/col vectors (Prototype)
     def dotProduct(self, m1, m2):
-        return self.dotProduct_(sum(m1, []), sum(m2, [])) # good taste
+        return self.dotProduct__(sum(m1, []), sum(m2, [])) # good taste
 
     # nrows(matrix)
-    # Gets number of rows (Universal)
+    # Gets number of rows (Prototype)
     def nrows_(self, m):   return len(m)
 
     # ncols(matrix)
-    # Gets number of cols (Universal)
+    # Gets number of cols (Prototype)
     def ncols_(self, m):   return (0 if len(m) == 0 else len(m[0]))
 
     # nrows(matrix)
@@ -154,6 +154,22 @@ class Matrix:
             raise ValueError("Out-of-Bounds Matrix Access", i, j, self.internal)
         return self.internal[i-1][j-1]
 
+    # setElem_(i,j,val)
+    # Set [i,j] in matrix (SIDE EFFECTS, but almost everything is these days)
+    def setElem_(self, i, j, val):
+        if(len(self.internal) < i or len(self.internal[i-1]) < j):
+            raise ValueError("Out-of-Bounds Matrix Access", i, j, self.internal)
+        self.internal[i-1][j-1] = val
+        return self.internal[i-1][j-1]
+
+    # setElem(i, j, val)
+    # Set [i,j] in matrix without side effects (returns a copy), immutable
+    def setElem(self, i, j, val):
+        mp = Matrix(1, 1, lambda i, j: 0)
+        mp.internal = [xs[:] for xs in self.internal]
+        mp.setElem_(i, j, val)
+        return mp
+
     # transpose()
     # Get matrix transposition. O(c*r)
     def transpose(self):    return Matrix(self.ncols(), self.nrows(), lambda i, j: self.elem(j, i))
@@ -162,7 +178,7 @@ class Matrix:
     # multStd_ a@(M n m _ _ _ _) b@(M _ m' _ _ _ _) = 
     #    matrix n m' $ \(i,j) -> sum [ a !. (i,k) * b !. (k,j) | k <- [1 .. m] ]
     def __mul__(self, m2):
-        res = Matrix(self.nrows(), m2.ncols(), lambda i, j: self.dotProduct_(self.getRow(i), m2.getCol(j)))
+        res = Matrix(self.nrows(), m2.ncols(), lambda i, j: self.dotProduct__(self.getRow(i), m2.getCol(j)))
         return res
 
     # add

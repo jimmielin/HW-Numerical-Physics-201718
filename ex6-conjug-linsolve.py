@@ -1,6 +1,6 @@
 ####################################################################
 # Computational Physics, 2017-18 Sem1
-# HW-1 Ex-8
+# HW-1 Ex-6
 #
 # (c) 2017 Haipeng Lin <linhaipeng@pku.edu.cn>
 # All Rights Reserved.
@@ -79,7 +79,7 @@ def conjGradient2(A, b, x0):
         beta = (rc.transpose() * rc).map(lambda x: x/beta_factor).elem(1, 1)
         pc = rc + pc.map(lambda x: x * beta)
         k = k + 1
-    print("debug from conjGradient2: did ", k, "iterations")
+#print("debug from conjGradient2: did ", k, "iterations")
     return x
 
 # Actual Code for Exercise 6
@@ -92,13 +92,16 @@ def ex6_2(n):
 def ex6_2_noprint(n):
     (conjGradient2(matrixA(n), vectorB(n), Matrix(n, 1, lambda i, j: 0)))
 
+
+
 timings = []
-for i in range(2, 1000):
+for i in range(3, 101):
     start_time = time.time()
     ex6_2_noprint(i) # don't print
     elapsed_time = time.time() - start_time
     timings.append(elapsed_time)
-    print("Execution time is i=", i, " t=", elapsed_time, " seconds")
+    # print("Execution time is i=", i, " t=", elapsed_time, " seconds")
+    print(elapsed_time)
 
 print(timings)
 

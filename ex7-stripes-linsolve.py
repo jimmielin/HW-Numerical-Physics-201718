@@ -1,6 +1,6 @@
 ####################################################################
 # Computational Physics, 2017-18 Sem1
-# HW-1 Ex-8
+# HW-1 Ex-7
 #
 # (c) 2017 Haipeng Lin <linhaipeng@pku.edu.cn>
 # All Rights Reserved.

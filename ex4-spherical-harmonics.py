@@ -60,10 +60,20 @@ def derivF_c_cycle(f, x, level = 1, h = None):
 ####################################################################
 # Utility: Factorial Function
 # factorial(n) returns n! (for n in natural number)
-def factorial(n):
+# With Caching w/ Automatic Compilation (to avoid RecursionError)
+factorial_cache = {0: 1, 1: 1}
+def factorial(n, isCache = None):
 	if(n == 0):
 		return 1
-	return n * factorial(n - 1)
+
+	if(n > 500 and isCache == None):
+		for i in range(249, n//2):
+			factorial(i*2, True)
+
+	cache = factorial_cache.get(n, None)
+	if(cache == None):
+		factorial_cache[n] = n * factorial(n - 1, isCache)
+	return factorial_cache[n]
 
 # Utility: Double Factorial Function
 # doubleFactorial(n) returns n!! (double factorial) (for n in natural number)
@@ -102,12 +112,12 @@ def legendrePolyNA(n, x, isCache = None):
 	if(cache == None):
 		legendrePolyNA_cache[n] = {}
 		# print("* legendrePolyNA diag: cache missed for n = ", n, flush=True)
-		legendrePolyNA_cache[n][x] = (2*n-1)/n*x*legendrePolyNA(n-1, x) - (n-1)/n*legendrePolyNA(n-2, x)
+		legendrePolyNA_cache[n][x] = (2*n-1)/n*x*legendrePolyNA(n-1, x, isCache) - (n-1)/n*legendrePolyNA(n-2, x, isCache)
 	else:
 		cache = legendrePolyNA_cache[n].get(x, None)
 		if(cache == None):
 			# print("* legendrePolyNA diag: cache missed for n = ", n, flush=True)
-			legendrePolyNA_cache[n][x] = (2*n-1)/n*x*legendrePolyNA(n-1, x) - (n-1)/n*legendrePolyNA(n-2, x)
+			legendrePolyNA_cache[n][x] = (2*n-1)/n*x*legendrePolyNA(n-1, x, isCache) - (n-1)/n*legendrePolyNA(n-2, x, isCache)
 
 	# print("* legendrePolyNA diag: n = ", n, ", x = ", x, flush=True)
 	return legendrePolyNA_cache[n][x]
@@ -116,10 +126,10 @@ def legendrePolyNA(n, x, isCache = None):
 #    m
 #  P    = ...
 #    l
-# With Caching
+# With Caching w/ Automatic Pre-Compilation
 # Caching structure: _cache[l][m][x]
 legendrePolyA_cache = {}
-def legendrePolyA(l, m, x):
+def legendrePolyA(l, m, x, isCache = None):
 	global legendrePolyA_cache
 
 	# Define a few existing formulae we can calculate directly,
@@ -133,7 +143,7 @@ def legendrePolyA(l, m, x):
 	if(l == m):
 		return (-1)**l * doubleFactorial(2*l - 1) * (1 - x**2)**(l / 2)
 	if(l-1 == m):
-		return x*(2*l-1) * legendrePolyA(l-1, l-1, x)
+		return x*(2*l-1) * legendrePolyA(l-1, l-1, x, isCache)
 
 	if(m == 1):
 		if(l == 1):
@@ -141,14 +151,25 @@ def legendrePolyA(l, m, x):
 		if(l == 2):
 			return (-1)*3*x*(1-x*x)**(1/2)
 
-	# print("* legendrePolyA diag: l = ", l, ", m = ", m, ", x = ", x, flush=True)
-	# Old Recursion:
+	# print("* legendrePolyA diag: l = ", l, ", m = ", m, ", x = ", x, ", isCache = ", isCache, flush=True)
+	# Traditional Recursion:
 	# This is a bit slow because it only decrements L
 	# (2*l-1)/(l-m)*x*legendrePolyA(l-1, m, x) - (l+m-1)/(l-m)*legendrePolyA(l-2, m, x)
-	# But it works for small L very nicely with higher precision.
+	# But it works for small L very nicely with higher precision,
+	# also it is used for caching on large L
+	# (2*l-1)/(l-m)*x*legendrePolyA(l-1, m, x) - (l+m-1)/(l-m)*legendrePolyA(l-2, m, x)
 
-	# New Recursion does incrementing & incrementing of M, while decrementing L
-	# smartly, making use of legendryPolyNA
+	# Pre-compiled Caching is used
+	# to reduce recursion exponential depth growth.
+	if(l > 25 and isCache == None):
+		for i in range(24, l):
+			# print("* legendrePolyA diag: building cache for l = ", i, " m = ", m, isCache, flush=True)
+			legendrePolyA(i, m, x, True)
+
+
+	# Another Recursion does incrementing & incrementing of M, while decrementing L
+	# smartly, making use of legendryPolyNA,
+	# used when M is sufficiently large.
 	# and the fact that Plm=0 when |m|>l
 	# ((1-x**2)**(1/2))*(-1)/(2*m)*(legendrePolyA(l-1, m+1, x)+(l+m-1)*(l+m)*legendrePolyA(l-1,m-1,x))
 
@@ -156,16 +177,21 @@ def legendrePolyA(l, m, x):
 	if(cache == None): # w/o l
 		legendrePolyA_cache[l] = {}
 		legendrePolyA_cache[l][m] = {}
-		legendrePolyA_cache[l][m][x] = ((1-x**2)**(1/2))*(-1)/(2*m)*(legendrePolyA(l-1, m+1, x)+(l+m-1)*(l+m)*legendrePolyA(l-1,m-1,x))
+		legendrePolyA_cache[l][m][x] = (2*l-1)/(l-m)*x*legendrePolyA(l-1, m, x, isCache) - (l+m-1)/(l-m)*legendrePolyA(l-2, m, x, isCache)
+		#print("* legendrePolyA diag: cache missed l = ", l, flush=True)
 	else: # w l
 		cache = legendrePolyA_cache[l].get(m, None)
 		if(cache == None): # w/o m
 			legendrePolyA_cache[l][m] = {}
-			legendrePolyA_cache[l][m][x] = ((1-x**2)**(1/2))*(-1)/(2*m)*(legendrePolyA(l-1, m+1, x)+(l+m-1)*(l+m)*legendrePolyA(l-1,m-1,x))
+			legendrePolyA_cache[l][m][x] = (2*l-1)/(l-m)*x*legendrePolyA(l-1, m, x, isCache) - (l+m-1)/(l-m)*legendrePolyA(l-2, m, x, isCache)
+			#print("* legendrePolyA diag: cache missed l = ", l, ", m = ", m, flush=True)
 		else:
-			cache = legendrePolyA_cache[l].get(x, None)
+			cache = legendrePolyA_cache[l][m].get(x, None)
 			if(cache == None): # w/o x
-				legendrePolyA_cache[l][m][x] = ((1-x**2)**(1/2))*(-1)/(2*m)*(legendrePolyA(l-1, m+1, x)+(l+m-1)*(l+m)*legendrePolyA(l-1,m-1,x))
+				legendrePolyA_cache[l][m][x] = (2*l-1)/(l-m)*x*legendrePolyA(l-1, m, x, isCache) - (l+m-1)/(l-m)*legendrePolyA(l-2, m, x, isCache)
+			#	print("* legendrePolyA diag: cache missed l = ", l, ", m = ", m, ", x = ", x, ", isCache = ", isCache, flush=True)
+			#else:
+			#	print("* legendrePolyA diag: cache hit")
 
 	# print("* legendrePolyNA diag: n = ", n, ", x = ", x, flush=True)
 	return legendrePolyA_cache[l][m][x]
@@ -216,4 +242,10 @@ def SphericalHarmonics(l, m, theta, phi):
 
 
 # print(legendrePolyNA(5000, pi/1000))
-print(SphericalHarmonics(100, 1, pi/1000, pi/6))
+import time
+start_time = time.time()
+print(SphericalHarmonics(10000, 1, pi/1000, pi/6))
+elapsed_time = time.time() - start_time
+print("Execution time is ", elapsed_time, " seconds.")
+#print(legendrePolyA(900, 1, pi/1000))
+#print(legendrePolyA(1000, 1, pi/1000))

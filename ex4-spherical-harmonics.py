@@ -18,6 +18,8 @@
 #              Beautiful Now - Zedd
 ####################################################################
 
+import decimal
+
 ####################################################################
 # Numerical Differentiation
 # Given a function f(x), get a numerical f'(x) result
@@ -77,12 +79,50 @@ def factorial(n, isCache = None):
 
 # Utility: Double Factorial Function
 # doubleFactorial(n) returns n!! (double factorial) (for n in natural number)
-def doubleFactorial(n):
+# If acc (accumulator) is given, then the result is multiplied from the acc.
+#  * WARNING: If you provide a acc, tail recursion is disabled (so is caching)
+#      (doesn't really matter, Python's tail recursion is basically crap anyway)
+doubleFactorial_cache = {0: 1, 1: 1, 2: 2}
+def doubleFactorial(n, acc = 1, isCache = None):
 	if(n == 0 or n == 1):
 		return 1
 	elif(n == 2):
 		return 2
-	return n * doubleFactorial(n - 2)
+
+	if(acc != 1):
+		while(n != 0 and n != 1):
+			# print("* doubleFactorial diag: intermediate result = ", acc, flush=True)
+			acc = acc * n
+			n = n - 2
+		return acc
+
+	if(n > 250 and isCache == None):
+		for i in range(124, n//2):
+			doubleFactorial(i*2+n%2, isCache=True)
+
+	cache = doubleFactorial_cache.get(n, None)
+	if(cache == None):
+		doubleFactorial_cache[n] = n * doubleFactorial(n - 2, isCache=isCache)
+		#print("* doubleFactorial diag: cache missed n = ", n, flush=True)
+	return doubleFactorial_cache[n]
+
+# Utility: FactorialFromTo
+# If from > to (this is an acceptable usage.), then the inverse is given and precisely calculated, float-first
+# If acc (accumulator) is given, then the result is multiplied from the acc.
+def factorialFromTo(a, b, acc = 1):
+	result = acc
+	if(a == b):
+		return a
+
+	if(a < b):
+		for i in range(a + 1, b + 1):
+			result = result * i
+	elif(a > b):
+		for i in range(b + 1, a + 1):
+			result = result / i
+			#print("* factorialFromTo diag: intermediate result at i = ", i, " result = ", result, flush=True)
+
+	return result
 
 # LegendrePolyNA (Non-Associated)
 # With Caching w/ Pre-Compilation for large N (supports N up to 10000 as tested)
@@ -128,6 +168,9 @@ def legendrePolyNA(n, x, isCache = None):
 #    l
 # With Caching w/ Automatic Pre-Compilation
 # Caching structure: _cache[l][m][x]
+#
+# An improvement in 10-24-2017 uses Heuristic methods for choosing a recursion strategy, but it is not functional yet.
+# Improved 10-24-2017: Supports m < 0 using factorialFromTo
 legendrePolyA_cache = {}
 def legendrePolyA(l, m, x, isCache = None):
 	global legendrePolyA_cache
@@ -139,11 +182,13 @@ def legendrePolyA(l, m, x, isCache = None):
 
 	if(m == 0):
 		return legendrePolyNA(l, x)
+	elif(m < 0):
+		return (-1)**m * factorialFromTo(l-m, l+m, legendrePolyA(l, (-1)*m, x, isCache=isCache))
 
 	if(l == m):
-		return (-1)**l * doubleFactorial(2*l - 1) * (1 - x**2)**(l / 2)
-	if(l-1 == m):
-		return x*(2*l-1) * legendrePolyA(l-1, l-1, x, isCache)
+		return (-1)**l * doubleFactorial(2*l - 1) * ((1 - x**2)**(l / 2))
+	#if(l-1 == m):
+	#	return x*(2*l-1) * legendrePolyA(l-1, l-1, x, isCache)
 
 	if(m == 1):
 		if(l == 1):
@@ -173,23 +218,39 @@ def legendrePolyA(l, m, x, isCache = None):
 	# and the fact that Plm=0 when |m|>l
 	# ((1-x**2)**(1/2))*(-1)/(2*m)*(legendrePolyA(l-1, m+1, x)+(l+m-1)*(l+m)*legendrePolyA(l-1,m-1,x))
 
+	# Heuristic for L/M-combo-values (if sufficiently large, use different strategy)
+	#if(abs(l - m) < 3):
+	#	# strategy = "dLiM" # decrement L, incrementing M *BRANCHES OUT EXPONENTIALLY
+	#else:
+	#	strategy = "dL_M" # decrement L only
+	strategy = "dL_M"
+
 	cache = legendrePolyA_cache.get(l, None)
 	if(cache == None): # w/o l
 		legendrePolyA_cache[l] = {}
 		legendrePolyA_cache[l][m] = {}
-		legendrePolyA_cache[l][m][x] = (2*l-1)/(l-m)*x*legendrePolyA(l-1, m, x, isCache) - (l+m-1)/(l-m)*legendrePolyA(l-2, m, x, isCache)
-		#print("* legendrePolyA diag: cache missed l = ", l, flush=True)
+		if(strategy == "dL_M"):
+			legendrePolyA_cache[l][m][x] = (2*l-1)/(l-m)*x*legendrePolyA(l-1, m, x, isCache) - (l+m-1)/(l-m)*legendrePolyA(l-2, m, x, isCache)
+		elif(strategy == "dLiM"):
+			legendrePolyA_cache[l][m][x] = ((1-x**2)**(1/2))*(-1)/(2*m)*(legendrePolyA(l-1, m+1, x)+(l+m-1)*(l+m)*legendrePolyA(l-1,m-1,x))
+		# print("* legendrePolyA diag: cache missed l = ", l, flush=True)
 	else: # w l
 		cache = legendrePolyA_cache[l].get(m, None)
 		if(cache == None): # w/o m
 			legendrePolyA_cache[l][m] = {}
-			legendrePolyA_cache[l][m][x] = (2*l-1)/(l-m)*x*legendrePolyA(l-1, m, x, isCache) - (l+m-1)/(l-m)*legendrePolyA(l-2, m, x, isCache)
-			#print("* legendrePolyA diag: cache missed l = ", l, ", m = ", m, flush=True)
+			if(strategy == "dL_M"):
+				legendrePolyA_cache[l][m][x] = (2*l-1)/(l-m)*x*legendrePolyA(l-1, m, x, isCache) - (l+m-1)/(l-m)*legendrePolyA(l-2, m, x, isCache)
+			elif(strategy == "dLiM"):
+				legendrePolyA_cache[l][m][x] = ((1-x**2)**(1/2))*(-1)/(2*m)*(legendrePolyA(l-1, m+1, x)+(l+m-1)*(l+m)*legendrePolyA(l-1,m-1,x))
+			# print("* legendrePolyA diag: cache missed l = ", l, ", m = ", m, flush=True)
 		else:
 			cache = legendrePolyA_cache[l][m].get(x, None)
 			if(cache == None): # w/o x
-				legendrePolyA_cache[l][m][x] = (2*l-1)/(l-m)*x*legendrePolyA(l-1, m, x, isCache) - (l+m-1)/(l-m)*legendrePolyA(l-2, m, x, isCache)
-			#	print("* legendrePolyA diag: cache missed l = ", l, ", m = ", m, ", x = ", x, ", isCache = ", isCache, flush=True)
+				if(strategy == "dL_M"):
+					legendrePolyA_cache[l][m][x] = (2*l-1)/(l-m)*x*legendrePolyA(l-1, m, x, isCache) - (l+m-1)/(l-m)*legendrePolyA(l-2, m, x, isCache)
+				elif(strategy == "dLiM"):
+					legendrePolyA_cache[l][m][x] = ((1-x**2)**(1/2))*(-1)/(2*m)*(legendrePolyA(l-1, m+1, x)+(l+m-1)*(l+m)*legendrePolyA(l-1,m-1,x))
+				# print("* legendrePolyA diag: cache missed l = ", l, ", m = ", m, ", x = ", x, ", isCache = ", isCache, flush=True)
 			#else:
 			#	print("* legendrePolyA diag: cache hit")
 
@@ -212,11 +273,37 @@ pi = 3.141592653589793
 # Uses Taylor Series Approximation for cosine
 # Depends on:
 #    factorial
-# FIXME: 45 items is also an arbitrary precision limit.
+# FIXME: 64 items is also an arbitrary precision limit.
+# Improved 10-23-2017: If there is a modulo 2pi, remove it for higher
+#   precision.
 def cos(theta):
 	result = 1
-	for i in range(1, 45):
+	theta  = abs(theta) # symmetry helps
+	while(theta > 2*pi):
+		theta += (-1)*2*pi
+
+	for i in range(1, 64):
 		result += (-1)**i * theta**(i*2) / factorial(i*2)
+	return result
+
+# Utility: Sine Function
+# Uses Taylor Series Approximation for cosine
+# Depends on:
+#    factorial
+# FIXME: 64 items is also an arbitrary precision limit.
+# Improved 10-23-2017: If there is a modulo 2pi, remove it for higher
+#   precision.
+def sin(theta):
+	result = 0
+	if(theta < 0):
+		while(theta < (-1)*2*pi):
+			theta += 2*pi 
+	else:
+		while(theta > 2*pi):
+			theta += (-1)*2*pi
+
+	for i in range(1, 64):
+		result += (-1)**(i+1) * theta**(i*2-1) / factorial(i*2-1)
 	return result
 
 # Utility: Exponential Function
@@ -224,11 +311,15 @@ def cos(theta):
 # Depends on:
 #    factorial
 # FIXME: 32 items an arbitrary precision limit
-def exp(x):
-	result = 1
-	for i in range(1, 32):
-		result += x**i / factorial(i)
-	return result
+# Improved 10-23-2017: For purely imaginary inputs, the algorithm uses Euler.
+def exp(z):
+	if(z.imag != 0 and z.real == 0):
+		return cos(z.imag) + 1j*sin(z.imag)
+	else:
+		result = 1
+		for i in range(1, 32):
+			result += z**i / factorial(i)
+		return result
 
 # SphericalHarmonics(l, m, theta, phi)
 # Computes spherical harmonics Ylm(theta, phi) for given parameters.
@@ -237,15 +328,63 @@ def exp(x):
 #    cos (cosine function)
 #    exp (exponential function)
 #
+# Notes:
+#    ir prefix means "Intermediate Result" (Hungarian Notation)
 def SphericalHarmonics(l, m, theta, phi):
-	return ((2*l+1)*factorial(l-m)/factorial(l+m)/(4*pi))**(1/2) * legendrePolyA(l, m, cos(theta)) * exp(1j * m * phi)
+	# factorial(l-m)/factorial(l+m) replace with 1/factorialFromTo(l-m, l+m) should be more accurate
+	lPA = legendrePolyA(l, m, cos(theta))
+
+	# power 1/2 of complex numbers / negative numbers is completely inaccurate in Python,
+	# reaching absurd levels of error in the Real part (up to 1/2 of number)
+	# Which is why we need a "safe", official, sanctioned square root.
+	if(lPA < 0):
+		lPA_ssqrt = ((-1)*lPA)**(1/2) * 1j
+	else:
+		lPA_ssqrt = lPA**(1/2)
+
+	#print("* SphericalHarmonics diag: l=", l, " m=", m, " theta=", theta, " phi=", phi, flush=True)
+	#print("* SphericalHarmonics diag: lPA intermediate result lPA=", lPA, " (sqrt)=", lPA_ssqrt, flush=True)
+
+	#if(m > 50): # Heuristic for factorial explosion and custom accumulator
+	#	ilr_factorialFromTo = factorialFromTo(l-m, l+m)
+	#	if(ilr_factorialFromTo == 1e500): # +infty
+
+	# Rely on some heuristics depending on intermediate results,
+	# depending on what we obtain as the intermediate legendrePolyA result (e+150 is the maximum)
+	if(abs(lPA) > 1e+150):
+		irRS = factorialFromTo(l+m, l-m, (2*l+1) * lPA)/(4*pi)
+		if(irRS < 0):
+			irRS_ssqrt = ((-1)*irRS)**(1/2) * 1j
+		else:
+			irRS_ssqrt = irRS**(1/2)
+
+		return irRS_ssqrt * lPA_ssqrt * exp(1j * m * phi)
+	#elif(abs(lPA) < 1e-50 and m > 55): # Factorials grow large VERY fast and accumulators have to be used
+	#	return (factorialFromTo(l+m, l-m, (2*l+1) * 1e300)/(4*pi))**(1/2) * lPA * 1e-300 * exp(1j * m * phi)
+	else:
+		irRS = factorialFromTo(l+m, l-m, (2*l+1) * lPA**2)/(4*pi)
+		return (irRS)**(1/2) * (1 if lPA > 0 else (-1)) * exp(1j * m * phi)
 
 
-# print(legendrePolyNA(5000, pi/1000))
-import time
-start_time = time.time()
-print(SphericalHarmonics(10000, 1, pi/1000, pi/6))
-elapsed_time = time.time() - start_time
-print("Execution time is ", elapsed_time, " seconds.")
-#print(legendrePolyA(900, 1, pi/1000))
-#print(legendrePolyA(1000, 1, pi/1000))
+#import time
+#start_time = time.time()
+#elapsed_time = time.time() - start_time
+#print("Execution time is ", elapsed_time, " seconds.")
+
+l = 500
+
+print(SphericalHarmonics(l, 1, pi/1000, pi/6))
+print(SphericalHarmonics(l, 1, 3*pi/10, pi/6))
+print(SphericalHarmonics(l, 1, 501*pi/1000, pi/6))
+
+print(SphericalHarmonics(l, int(l/100), pi/1000, pi/6))
+print(SphericalHarmonics(l, int(l/100), 3*pi/10, pi/6))
+print(SphericalHarmonics(l, int(l/100), 501*pi/1000, pi/6))
+
+print(SphericalHarmonics(l, int(l/10), pi/1000, pi/6))
+print(SphericalHarmonics(l, int(l/10), 3*pi/10, pi/6))
+print(SphericalHarmonics(l, int(l/10), 501*pi/1000, pi/6))
+
+print(SphericalHarmonics(l, l-1, pi/1000, pi/6))
+print(SphericalHarmonics(l, l-1, 3*pi/10, pi/6))
+print(SphericalHarmonics(l, l-1, 501*pi/1000, pi/6))

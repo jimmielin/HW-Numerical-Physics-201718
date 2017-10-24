@@ -27,8 +27,6 @@
 # but re-implemented in Python.
 ####################################################################
 
-import math
-import time
 from functools import partial
 
 # Include my own lightweight matrix library & its prototype
@@ -54,52 +52,52 @@ from pylitematrix.pylitematrix import Matrix, mp
 # understanding, but some have not for implementation reasons.
 # 
 def solveTri(M, b):
-	# Extract the {c_i}, {b_i} and {a_i} in the NxN matrix
-	n = M.nrows()
-	if(M.ncols() != n):
-		raise ValueError("Tridiagonal Matrix to-solve must be square.")
+    # Extract the {c_i}, {b_i} and {a_i} in the NxN matrix
+    n = M.nrows()
+    if(M.ncols() != n):
+        raise ValueError("Tridiagonal Matrix to-solve must be square.")
 
-	# The arrays below have been padded so the indeces are mathematically sound.
-	# One doesn't have to do this, but it makes for more coding convenience.
-	A = [0, 0] # lower diagonal A, i=2,3..n
-	B = [0] # diagonal B, i=1,2,..n
-	C = [0] # upper diagonal C, i=1,2,..n-1
-	D = b.toList() # right-b vector d1, d2, ... n
-	D.insert(0, 0) # left-padd, * minor performance concern
+    # The arrays below have been padded so the indeces are mathematically sound.
+    # One doesn't have to do this, but it makes for more coding convenience.
+    A = [0, 0] # lower diagonal A, i=2,3..n
+    B = [0] # diagonal B, i=1,2,..n
+    C = [0] # upper diagonal C, i=1,2,..n-1
+    D = b.toList() # right-b vector d1, d2, ... n
+    D.insert(0, 0) # left-padd, * minor performance concern
 
-	# The solution array is *NOT* padded, as it'll be used for
-	# fromList_ by the Matrix prototype
-	# It's even reversed as part of back-substitution
-	# so watch out for the index.
-	X = [None] * n
+    # The solution array is *NOT* padded, as it'll be used for
+    # fromList_ by the Matrix prototype
+    # It's even reversed as part of back-substitution
+    # so watch out for the index.
+    X = [None] * n
 
-	# .elem is now O(1) so you can use that for safety,
-	# but I'll tap into .internal represenation for speed and less overhead
-	# since we already checked the indexes above
-	for i in range(1, n+1):
-		if(i != 1): # make sure i=1 case does not run for A
-			A.append(M.internal[i-1][i-2])
-		if(i != n): # make sure i=n case does not run for C
-			C.append(M.internal[i-1][i])
-		B.append(M.internal[i-1][i-1])
+    # .elem is now O(1) so you can use that for safety,
+    # but I'll tap into .internal represenation for speed and less overhead
+    # since we already checked the indexes above
+    for i in range(1, n+1):
+        if(i != 1): # make sure i=1 case does not run for A
+            A.append(M.internal[i-1][i-2])
+        if(i != n): # make sure i=n case does not run for C
+            C.append(M.internal[i-1][i])
+        B.append(M.internal[i-1][i-1])
 
-	# Now perform the Thomas Algorithm Forward Sweep
-	C[1] = C[1] / B[1]
-	D[1] = D[1] / B[1]
-	for i in range(2, n+1):
-		if(i != n): # make sure i=n case does not run for C=..n-1
-			C[i] = C[i] / (B[i] - A[i] * C[i-1])
-		D[i] = (D[i] - A[i] * D[i-1]) / (B[i] - A[i] * C[i-1])
+    # Now perform the Thomas Algorithm Forward Sweep
+    C[1] = C[1] / B[1]
+    D[1] = D[1] / B[1]
+    for i in range(2, n+1):
+        if(i != n): # make sure i=n case does not run for C=..n-1
+            C[i] = C[i] / (B[i] - A[i] * C[i-1])
+        D[i] = (D[i] - A[i] * D[i-1]) / (B[i] - A[i] * C[i-1])
 
-	# Now do a back-subsitution...
-	X[0] = D[n]
-	for i in range(2, n+1):
-		j = n+1-i # back indexes
-		X[i-1] = D[j] - C[j] * X[i-2]
+    # Now do a back-subsitution...
+    X[0] = D[n]
+    for i in range(2, n+1):
+        j = n+1-i # back indexes
+        X[i-1] = D[j] - C[j] * X[i-2]
 
-	X.reverse()
+    X.reverse()
 
-	return mp.fromList_(n, 1, X)
+    return mp.fromList_(n, 1, X)
 
 # Some testing data.
 #testtrim = mp.fromList_(4, 4, [1,5,0,0,8,2,6,0,0,9,3,7,0,0,10,4])
@@ -143,28 +141,28 @@ bR = lambda a, b, x: (x-b)*((x-a)/(a-b))**2
 # i = 0, 1, ... n (for a total of n+1 nodes)
 # Indexes are mathematical since the mathematical definition starts with zero.
 def aI(x, i, nodes):
-	n = len(nodes) - 1
-	if(n < 1):
-		raise ValueError("There must be at least 2 nodes for Hermite Extrapolation (or any, actually.)")
+    n = len(nodes) - 1
+    if(n < 1):
+        raise ValueError("There must be at least 2 nodes for Hermite Extrapolation (or any, actually.)")
 
-	if(i == 0):
-		return 0 if x < nodes[0] else (aL(a=nodes[0],b=nodes[1],x=x) if x < nodes[1] else 0)
-	elif(i == n):
-		return 0 if x < nodes[n-1] else (aR(a=nodes[n-1],b=nodes[n],x=x) if x < nodes[n] else 0)
-	else:
-		return 0 if x < nodes[i-1] else (aR(a=nodes[i-1],b=nodes[i],x=x) if x < nodes[i] else (aL(a=nodes[i],b=nodes[i+1],x=x) if x < nodes[i+1] else 0)) 
+    if(i == 0):
+        return 0 if x < nodes[0] else (aL(a=nodes[0],b=nodes[1],x=x) if x < nodes[1] else 0)
+    elif(i == n):
+        return 0 if x < nodes[n-1] else (aR(a=nodes[n-1],b=nodes[n],x=x) if x <= nodes[n] else 0)
+    else:
+        return 0 if x < nodes[i-1] else (aR(a=nodes[i-1],b=nodes[i],x=x) if x < nodes[i] else (aL(a=nodes[i],b=nodes[i+1],x=x) if x < nodes[i+1] else 0)) 
 
 def bI(x, i, nodes):
-	n = len(nodes) - 1
-	if(n < 1):
-		raise ValueError("There must be at least 2 nodes for Hermite Extrapolation (or any, actually.)")
+    n = len(nodes) - 1
+    if(n < 1):
+        raise ValueError("There must be at least 2 nodes for Hermite Extrapolation (or any, actually.)")
 
-	if(i == 0):
-		return 0 if x < nodes[0] else (bL(a=nodes[0],b=nodes[1],x=x) if x < nodes[1] else 0)
-	elif(i == n):
-		return 0 if x < nodes[n-1] else (bR(a=nodes[n-1],b=nodes[n],x=x) if x < nodes[n] else 0)
-	else:
-		return 0 if x < nodes[i-1] else (bR(a=nodes[i-1],b=nodes[i],x=x) if x < nodes[i] else (bL(a=nodes[i],b=nodes[i+1],x=x) if x < nodes[i+1] else 0))
+    if(i == 0):
+        return 0 if x < nodes[0] else (bL(a=nodes[0],b=nodes[1],x=x) if x < nodes[1] else 0)
+    elif(i == n):
+        return 0 if x < nodes[n-1] else (bR(a=nodes[n-1],b=nodes[n],x=x) if x <= nodes[n] else 0)
+    else:
+        return 0 if x < nodes[i-1] else (bR(a=nodes[i-1],b=nodes[i],x=x) if x < nodes[i] else (bL(a=nodes[i],b=nodes[i+1],x=x) if x < nodes[i+1] else 0))
 
 # Generate Equations
 # Given xs, ys, generate the matrices to be solved in order to get the appropriate m-factors
@@ -176,34 +174,34 @@ def bI(x, i, nodes):
 #
 # Arrays xs and ys are mathematical indexes i=0..n
 def genSplineMatrix(xs, ys):
-	n = len(xs) - 1
-	if(n != len(ys) - 1):
-		raise ValueError("You must provide as many y-points as x-points to genSplineMatrix")
+    n = len(xs) - 1
+    if(n != len(ys) - 1):
+        raise ValueError("You must provide as many y-points as x-points to genSplineMatrix")
 
-	M = mp.diag_(n+1, [2] * (n+1))
+    M = mp.diag_(n+1, [2] * (n+1))
 
-	# arrays lambdas & mus are mathematical indexes i=0..n
-	lambdas = [None] * (n+1)
-	lambdas[0] = 1
-	lambdas[n] = 0
-	M.setElem_(1, 2, lambdas[0])
-	M.setElem_(n+1, n, 1)
-	# h_i = x_i+1 - x_i
+    # arrays lambdas & mus are mathematical indexes i=0..n
+    lambdas = [None] * (n+1)
+    lambdas[0] = 1
+    lambdas[n] = 0
+    M.setElem_(1, 2, lambdas[0])
+    M.setElem_(n+1, n, 1)
+    # h_i = x_i+1 - x_i
 
-	mus = [None] * (n+1)
-	mus[0] = 3 * (ys[1] - ys[0]) / (xs[1] - xs[0])
-	mus[n] = 3 * (ys[n] - ys[n-1]) / (xs[n] - xs[n-1])
+    mus = [None] * (n+1)
+    mus[0] = 3 * (ys[1] - ys[0]) / (xs[1] - xs[0])
+    mus[n] = 3 * (ys[n] - ys[n-1]) / (xs[n] - xs[n-1])
 
-	for i in range(1, n):
-		lambdas[i] = (xs[i] - xs[i-1]) / (xs[i+1] - xs[i-1])
-		mus[i]     = 3 * ((ys[i] - ys[i-1]) * (1 - lambdas[i]) / (xs[i] - xs[i-1]) + (ys[i+1] - ys[i]) * lambdas[i] / (xs[i+1] - xs[i]))
-		# and commit using the side-effect setElem_ function
-		M.setElem_(i+1,i+2,lambdas[i])
-		M.setElem_(i+1,i,1-lambdas[i])
+    for i in range(1, n):
+        lambdas[i] = (xs[i] - xs[i-1]) / (xs[i+1] - xs[i-1])
+        mus[i]     = 3 * ((ys[i] - ys[i-1]) * (1 - lambdas[i]) / (xs[i] - xs[i-1]) + (ys[i+1] - ys[i]) * lambdas[i] / (xs[i+1] - xs[i]))
+        # and commit using the side-effect setElem_ function
+        M.setElem_(i+1,i+2,lambdas[i])
+        M.setElem_(i+1,i,1-lambdas[i])
 
-	B = mp.fromList_(n+1,1,mus)
+    B = mp.fromList_(n+1,1,mus)
 
-	return (M, B)
+    return (M, B)
 
 # Reticulate Splines (Actual Code)
 # Generate Equations, Solve Equations, Construct Functions, and returns a Lambda
@@ -212,23 +210,23 @@ def genSplineMatrix(xs, ys):
 # Luckily, Python does not do lazy evaluation, meaning that this lambda will be speedy
 # instead of being tri-solved every call. :)
 def spline_(xs, ys, x):
-	gendMatrix = genSplineMatrix(xs, ys)
-	mSolution  = solveTri(gendMatrix[0], gendMatrix[1]).toList() # ms...
+    gendMatrix = genSplineMatrix(xs, ys)
+    mSolution  = solveTri(gendMatrix[0], gendMatrix[1]).toList() # ms...
 
-	# To do a sum, we need parrying & foldl which Python does not do very well.
-	# Hence we use functools.partial to do this in a tricky way,
-	# making this spline_ function do the dirty work and wrapping it in a cleaner
-	# spline function.
-	# def aI(x, i, nodes) / bI
-	res = 0
-	for i, y in enumerate(ys):
-		res += y * aI(x, i, xs) + mSolution[i] * bI(x, i, xs)
+    # To do a sum, we need parrying & foldl which Python does not do very well.
+    # Hence we use functools.partial to do this in a tricky way,
+    # making this spline_ function do the dirty work and wrapping it in a cleaner
+    # spline function.
+    # def aI(x, i, nodes) / bI
+    res = 0
+    for i, y in enumerate(ys):
+        res += y * aI(x, i, xs) + mSolution[i] * bI(x, i, xs)
 
-	return res
+    return res
 
 def spline(xs, ys):
-	spp = partial(spline_, xs=xs, ys=ys)
-	return lambda x: spp(x=x)
+    spp = partial(spline_, xs=xs, ys=ys)
+    return lambda x: spp(x=x)
 
 ex8 = spline([0,3,5,7,9,11,12,13,14,15], [0,1.2,1.7,2.0,2.1,2.0,1.8,1.2,1.0,1.6])
 
@@ -239,3 +237,10 @@ xs = [x/100 for x in range(1,1500)]
 ys = [ex8(x) for x in xs]
 ax.plot(xs, ys)
 plt.show()
+
+# For 0.1x variances
+xs = [0,3,5,7,9,11,12,13,14,15]
+for i in range(len(xs)):
+    print("x =", xs[i] - 0.1, " y =", ex8(xs[i] - 0.1))
+    print("x =", xs[i], " y =", ex8(xs[i]))
+    print("x =", xs[i] + 0.1, " y =", ex8(xs[i] + 0.1))

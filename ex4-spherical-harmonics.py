@@ -118,7 +118,7 @@ def factorialFromTo(a, b, acc = 1):
     elif(a > b):
         for i in range(b + 1, a + 1):
             result = result / i
-            #print("* factorialFromTo diag: intermediate result at i = ", i, " result = ", result, flush=True)
+            # print("* factorialFromTo diag: intermediate result at i = ", i, " result = ", result, flush=True)
 
     return result
 
@@ -231,7 +231,7 @@ def legendrePolyA(l, m, x, isCache = None):
             legendrePolyA_cache[l][m][x] = (2*l-1)/(l-m)*x*legendrePolyA(l-1, m, x, isCache) - (l+m-1)/(l-m)*legendrePolyA(l-2, m, x, isCache)
         elif(strategy == "dLiM"):
             legendrePolyA_cache[l][m][x] = ((1-x**2)**(1/2))*(-1)/(2*m)*(legendrePolyA(l-1, m+1, x)+(l+m-1)*(l+m)*legendrePolyA(l-1,m-1,x))
-        # print("* legendrePolyA diag: cache missed l = ", l, flush=True)
+        # print("* legendrePolyA diag: cache missed l = ", l, " strategy=", strategy, flush=True)
     else: # w l
         cache = legendrePolyA_cache[l].get(m, None)
         if(cache == None): # w/o m
@@ -286,6 +286,11 @@ def cos(theta):
         return (-1)
     elif(abs(theta) < 1e-11 or abs(theta-2*pi) < 1e-11):
         return 1
+
+    if(theta > pi):
+        return (-1) * cos(theta - pi) # reduce...
+    if(theta > pi/2):
+        return (-1) * sin(theta - pi/2)
 
     for i in range(1, 64):
         result += (-1)**i * theta**(i*2) / factorial(i*2)
@@ -354,6 +359,7 @@ def _irSpFactorial(l):
 def SphericalHarmonics(l, m, theta, phi):
     # Special Heuristic Shim for large M
     if(m == l-1):
+        # print("* SphericalHarmonics diag: strategy 4 for irRS shimming")
         x = cos(theta)
         irRS = (2*l+1)/(4*pi)*_irSpFactorial(l)*x*x*(2*l-1)**2*(1-x**2)**(l-1)
         return (-1)**(l-1) * (-1 if x < 0 else 1) * (irRS)**(1/2) * exp(1j * m * phi)
@@ -369,8 +375,9 @@ def SphericalHarmonics(l, m, theta, phi):
     else:
         lPA_ssqrt = lPA**(1/2)
 
-    #print("* SphericalHarmonics diag: l=", l, " m=", m, " theta=", theta, " phi=", phi, flush=True)
-    #print("* SphericalHarmonics diag: lPA intermediate result lPA=", lPA, " (sqrt)=", lPA_ssqrt, flush=True)
+    # print("* SphericalHarmonics diag: l=", l, " m=", m, " theta=", theta, " phi=", phi, flush=True)
+    # print("* SphericalHarmonics diag: lPA intermediate result lPA=", lPA, " (sqrt)=", lPA_ssqrt, flush=True)
+
 
     #if(m > 50): # Heuristic for factorial explosion and custom accumulator
     #   ilr_factorialFromTo = factorialFromTo(l-m, l+m)
@@ -379,11 +386,28 @@ def SphericalHarmonics(l, m, theta, phi):
     # Rely on some heuristics depending on intermediate results,
     # depending on what we obtain as the intermediate legendrePolyA result (e+150 is the maximum)
     if(abs(lPA) > 1e+150):
-        irRS = factorialFromTo(l+m, l-m, (2*l+1) * lPA)/(4*pi)
+        irBR = 1
+        irRR = 1
+        irRS = factorialFromTo(l+m, l-m, (2*l+1) * lPA * irBR)/(4*pi)
+
+        if(irRS == 0):
+            # Underflow
+            # Extract an exponent from lPA... for the maximum acceptable
+            # This is to ensure there's no underflow at factorialFromTo
+            # By "borrowing" an accumulator based on irBR (BoRrow), then Return it (irRR)
+            # from the final result.
+            irBE = int((1e+301 / lPA).__str__().split("e+")[1])
+            irBE += irBE % 2 - 2 # convert to an even number for sqrt-ng
+            irBH = irBE // 2
+            irBR = float("1e+" + irBE.__str__())
+            irRR = float("1e-" + irBH.__str__())
+            irRS = factorialFromTo(l+m, l-m, (2*l+1) * lPA * irBR)/(4*pi)
+            # print("* SphericalHarmonics diag: lPA strategy 3, irBR =", irBR, flush=True)
+
         if(irRS < 0):
-            irRS_ssqrt = ((-1)*irRS)**(1/2) * 1j
+            irRS_ssqrt = ((-1)*irRS)**(1/2) * irRR * 1j
         else:
-            irRS_ssqrt = irRS**(1/2)
+            irRS_ssqrt = irRS**(1/2) * irRR
 
         return irRS_ssqrt * lPA_ssqrt * exp(1j * m * phi)
     #elif(abs(lPA) < 1e-50 and m > 55): # Factorials grow large VERY fast and accumulators have to be used
@@ -400,18 +424,21 @@ def SphericalHarmonics(l, m, theta, phi):
 
 l = 1000
 
-# print(SphericalHarmonics(l, 1, pi/1000, pi/6))
-# print(SphericalHarmonics(l, 1, 3*pi/10, pi/6))
-# print(SphericalHarmonics(l, 1, 501*pi/1000, pi/6))
+print(SphericalHarmonics(l, 1, pi/1000, pi/6))
+print(SphericalHarmonics(l, 1, 3*pi/10, pi/6))
+print(SphericalHarmonics(l, 1, 501*pi/1000, pi/6))
+print("\n");
+print(SphericalHarmonics(l, int(l/100), pi/1000, pi/6))
+print(SphericalHarmonics(l, int(l/100), 3*pi/10, pi/6))
+print(SphericalHarmonics(l, int(l/100), 501*pi/1000, pi/6))
+print("\n");
 
-# print(SphericalHarmonics(l, int(l/100), pi/1000, pi/6))
-# print(SphericalHarmonics(l, int(l/100), 3*pi/10, pi/6))
-# print(SphericalHarmonics(l, int(l/100), 501*pi/1000, pi/6))
-
-# print(SphericalHarmonics(l, int(l/10), pi/1000, pi/6))
-# print(SphericalHarmonics(l, int(l/10), 3*pi/10, pi/6))
-# print(SphericalHarmonics(l, int(l/10), 501*pi/1000, pi/6))
+print(SphericalHarmonics(l, int(l/10), pi/1000, pi/6))
+print(SphericalHarmonics(l, int(l/10), 3*pi/10, pi/6))
+print(SphericalHarmonics(l, int(l/10), 501*pi/1000, pi/6))
+print("\n");
 
 print(SphericalHarmonics(l, l-1, pi/1000, pi/6))
 print(SphericalHarmonics(l, l-1, 3*pi/10, pi/6))
 print(SphericalHarmonics(l, l-1, 501*pi/1000, pi/6))
+print("\n");

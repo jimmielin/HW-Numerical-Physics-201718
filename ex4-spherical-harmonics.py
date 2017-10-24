@@ -282,6 +282,13 @@ def cos(theta):
 	while(theta > 2*pi):
 		theta += (-1)*2*pi
 
+	if(abs(theta-pi/2) < 1e-11 or abs(theta - 3*pi/2) < 1e-11):
+		return 0
+	elif(abs(theta-pi) < 1e-11):
+		return (-1)
+	elif(abs(theta) < 1e-11 or abs(theta-2*pi) < 1e-11):
+		return 1
+
 	for i in range(1, 64):
 		result += (-1)**i * theta**(i*2) / factorial(i*2)
 	return result
@@ -321,6 +328,22 @@ def exp(z):
 			result += z**i / factorial(i)
 		return result
 
+# _irSpFactorial(l)
+# Special Heuristic Shim for M=L-1
+# Supports large L, up to 1M
+def _irSpFactorial(l):
+    # (2l-3)!!(2l-3)!!/(2l-1)! = ((2l-3)(2l-5)...)^2/(2l-1)(2l-2)(2l-3)...
+    # u*u/(u+2)
+    result = 1
+    ptr2 = 2*l - 3
+    ptr1 = 2*l - 1
+    while(ptr2 != -1):
+        result = result * ptr2 / ptr1 
+        if(ptr1 % 2 == 0):
+            ptr2 = ptr2 - 2
+        ptr1 = ptr1 - 1
+    return result
+
 # SphericalHarmonics(l, m, theta, phi)
 # Computes spherical harmonics Ylm(theta, phi) for given parameters.
 # Depends on the following functions:
@@ -331,6 +354,12 @@ def exp(z):
 # Notes:
 #    ir prefix means "Intermediate Result" (Hungarian Notation)
 def SphericalHarmonics(l, m, theta, phi):
+	# Special Heuristic Shim for large M
+	if(m == l-1):
+		x = cos(theta)
+		irRS = (2*l+1)/(4*pi)*_irSpFactorial(l)*x*x*(2*l-1)**2*(1-x**2)**(l-1)
+		return (-1)**(l-1) * (-1 if x < 0 else 1) * (irRS)**(1/2) * exp(1j * m * phi)
+
 	# factorial(l-m)/factorial(l+m) replace with 1/factorialFromTo(l-m, l+m) should be more accurate
 	lPA = legendrePolyA(l, m, cos(theta))
 
@@ -371,19 +400,19 @@ def SphericalHarmonics(l, m, theta, phi):
 #elapsed_time = time.time() - start_time
 #print("Execution time is ", elapsed_time, " seconds.")
 
-l = 500
+l = 1000
 
-print(SphericalHarmonics(l, 1, pi/1000, pi/6))
-print(SphericalHarmonics(l, 1, 3*pi/10, pi/6))
-print(SphericalHarmonics(l, 1, 501*pi/1000, pi/6))
+# print(SphericalHarmonics(l, 1, pi/1000, pi/6))
+# print(SphericalHarmonics(l, 1, 3*pi/10, pi/6))
+# print(SphericalHarmonics(l, 1, 501*pi/1000, pi/6))
 
-print(SphericalHarmonics(l, int(l/100), pi/1000, pi/6))
-print(SphericalHarmonics(l, int(l/100), 3*pi/10, pi/6))
-print(SphericalHarmonics(l, int(l/100), 501*pi/1000, pi/6))
+# print(SphericalHarmonics(l, int(l/100), pi/1000, pi/6))
+# print(SphericalHarmonics(l, int(l/100), 3*pi/10, pi/6))
+# print(SphericalHarmonics(l, int(l/100), 501*pi/1000, pi/6))
 
-print(SphericalHarmonics(l, int(l/10), pi/1000, pi/6))
-print(SphericalHarmonics(l, int(l/10), 3*pi/10, pi/6))
-print(SphericalHarmonics(l, int(l/10), 501*pi/1000, pi/6))
+# print(SphericalHarmonics(l, int(l/10), pi/1000, pi/6))
+# print(SphericalHarmonics(l, int(l/10), 3*pi/10, pi/6))
+# print(SphericalHarmonics(l, int(l/10), 501*pi/1000, pi/6))
 
 print(SphericalHarmonics(l, l-1, pi/1000, pi/6))
 print(SphericalHarmonics(l, l-1, 3*pi/10, pi/6))

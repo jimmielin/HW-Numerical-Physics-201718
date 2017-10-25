@@ -35,7 +35,7 @@ def eulerForwardSolve(f, a, b, y0, dt = None):
     else:
         h = (b-a)/1000
     xn = a
-    ys = [(a,100)]
+    ys = [(a,y0)]
 
     while((xn) <= b): # do a little nudging because python's double is a little too sensitive
         xn += h

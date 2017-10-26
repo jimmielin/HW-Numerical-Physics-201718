@@ -15,6 +15,7 @@
 # compatible, and does not support Python 2.
 #
 # Now Playing: My Heart Will Go On - Celine Dion
+#              Not Another Song About Love - Hollywood Ending
 ####################################################################
 
 # The below is mostly adapted from the code in Exercise 2
@@ -144,41 +145,58 @@ def deg2Rad(deg):
 
 ## Exercise 5 Code
 # Configure parameters below:
-degTheta = 30      # deg
+# degTheta = 30      # deg
 v0 = 700           # m/s
+hasFriction = True
 fFactor = 4e-5     # M^(-1) as friction coefficient
 g = 9.8            # m/s^(-2) as gravity constant
-dt = 0.01        # dt as timestep
-te = 10000
+dt = 0.005          # dt as timestep
+te = 10000         # Arbitrarily defined maximum time_end (not actually used, as lambda t, y: y <= 0 termination rule will)
+#                  # control the result from breaking the floor, heh
 
-# Solve for dvy/dt, dvx/dt first
-vs = (eulerForwardSolveXY(lambda t, vx, vy: (-1) * fFactor**2 * (vx**2 + vy**2) ** (1/2) * vx, lambda t, vy, vx: (-1) * g - fFactor**2 * (vx**2 + vy**2) ** (1/2) * vy, 0, te, v0 * cos(deg2Rad(degTheta)), v0 * sin(deg2Rad(degTheta)), dt))
+if(hasFriction == False):
+	fFactor = 0
+	print("** WARNING: Friction set to 0 **")
 
-# Then simply solve for x and y...
-# Translate vs to an appropriate data structure (dictionary)
-vxs = {}
-vys = {}
-for i in range(len(vs)):
-	vxs[vs[i][0]] = vs[i][1]
-	vys[vs[i][0]] = vs[i][2]
+degThetas = [30, 40, 50]
+#import matplotlib.pyplot as plt
+#fig, ax = plt.subplots()
+for i in range(len(degThetas)):
+	degTheta = degThetas[i]
+	print("Calculating for theta = ", degTheta, "deg")
 
-xs_c = (eulerForwardSolve(lambda t, x: vxs[t], 0, te, 0, dt))
-ys_c = (eulerForwardSolve(lambda t, y: vys[t], 0, te, 0, dt, lambda t, y: y <= 0))
+	# Solve for dvy/dt, dvx/dt first
+	vs = (eulerForwardSolveXY(lambda t, vx, vy: (-1) * fFactor * (vx**2 + vy**2) ** (1/2) * vx, lambda t, vy, vx: (-1) * g - fFactor * (vx**2 + vy**2) ** (1/2) * vy, 0, te, v0 * cos(deg2Rad(degTheta)), v0 * sin(deg2Rad(degTheta)), dt))
 
-xs = []
-ys = []
+	# Then simply solve for x and y...
+	# Translate vs to an appropriate data structure (dictionary)
+	vxs = {}
+	vys = {}
+	for i in range(len(vs)):
+		vxs[vs[i][0]] = vs[i][1]
+		vys[vs[i][0]] = vs[i][2]
 
-for i in range(len(ys_c)):
-	xs.append(xs_c[i][1])
-	ys.append(ys_c[i][1])
+	xs_c = (eulerForwardSolve(lambda t, x: vxs[t], 0, te, 0, dt))
+	ys_c = (eulerForwardSolve(lambda t, y: vys[t], 0, te, 0, dt, lambda t, y: y <= 0))
 
-# Slice xs to fit ys...
-xs = xs[0:len(ys)]
+	xs = []
+	ys = []
 
-import matplotlib.pyplot as plt
-fig, ax = plt.subplots()
-ax.plot(xs, ys)
-plt.show()
+	for i in range(len(ys_c)):
+		xs.append(xs_c[i][1])
+		ys.append(ys_c[i][1])
 
-#for i in range(len(vys)):
-#	print(vys[i])
+	# Slice xs to fit ys...
+	xs = xs[0:len(ys)]
+
+	# Compute parameters as required by the exercise.
+	print("* Fall time t =", xs_c[len(ys_c)-1][0], "s")
+	print("* Velocity vx =", vs[len(ys_c)-1][1], "m/s, vy =", vs[len(ys_c)-1][2], "m/s")
+	print("* Speed v =", (vs[len(ys_c)-1][1]**2 + vs[len(ys_c)-1][2]**2)**(1/2), "m/s")
+	print("* Distance xf =", xs_c[len(ys_c)-1][1], "m")
+	print("\n")
+
+	#ax.plot(xs, ys, label=degTheta.__str__())
+
+#plt.legend(loc='upper left')
+#plt.show()

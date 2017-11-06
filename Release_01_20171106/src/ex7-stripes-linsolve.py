@@ -1,3 +1,6 @@
+# $ RELEASE $
+# $ 201711060205Z $ rel01
+# $ Signed-Off-By: Haipeng Lin <jimmie.lin@gmail.com>
 ####################################################################
 # Computational Physics, 2017-18 Sem1
 # HW-1 Ex-7

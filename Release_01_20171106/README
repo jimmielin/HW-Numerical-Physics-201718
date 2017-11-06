@@ -1,0 +1,28 @@
+################################################
+# COMPUTATIONAL PHYSICS, HW #1                 #
+# RELEASE NOTES                                #
+################################################
+
+1. Structure
+Source code is available at src/ and partial raw results are in results/
+For a complete explanation please check the attached PDF documentation.
+
+2. Running Environment
+This code has been tested with Python v3.6.0 on Linux x86_64, v3.6.2 on Darwin, MSYS_NT and Windows NT 10.0 (x64).
+No external packages are required.
+
+3. Memory Usage and Performance Requirements
+Default configurations should be able to run on all machines.
+For smaller timesteps and larger data sets (esp. ex-6 n = 10000) a fast-performing single-core setup is recommended.
+
+4. Threading
+No threading is used.
+
+5. Contact Information
+	** IF THERE ARE ANY ISSUES WITH THE CODE, DOCUMENTATION OR RESULTS THAT DO NOT MATCH UP WITH REFERENCE RESULTS
+	** PLEASE CONTACT ME IMMEDIATELY.
+
+	Haipeng Lin, linhaipeng@pku.edu.cn || jimmie.lin@gmail.com  		+86 186 0017 9744
+
+
+The author claims full copyright and authorship upon all the code written as homework.

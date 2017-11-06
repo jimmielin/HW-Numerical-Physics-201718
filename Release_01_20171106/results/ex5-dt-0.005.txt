@@ -1,0 +1,19 @@
+Calculating for theta =  30 deg
+* Fall time t = 57.365000000010895 s
+* Velocity vx = 238.94932652079044 m/s, vy = -248.37334798779113 m/s
+* Speed v = 344.65359512908566 m/s
+* Distance xf = 21280.926715367234 m
+
+
+Calculating for theta =  40 deg
+* Fall time t = 71.24500000000769 s
+* Velocity vx = 187.42509693281272 m/s, vy = -299.69275913029117 m/s
+* Speed v = 353.4740681229685 m/s
+* Distance xf = 22051.944101112123 m
+
+
+Calculating for theta =  50 deg
+* Fall time t = 83.03999999999697 s
+* Velocity vx = 145.64680783942504 m/s, vy = -338.917575594995 m/s
+* Speed v = 368.88767352813994 m/s
+* Distance xf = 20882.609784250006 m

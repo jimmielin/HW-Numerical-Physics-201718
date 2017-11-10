@@ -159,8 +159,8 @@ if(hasFriction == False):
 	print("** WARNING: Friction set to 0 **")
 
 degThetas = [30, 40, 50]
-#import matplotlib.pyplot as plt
-#fig, ax = plt.subplots()
+import matplotlib.pyplot as plt
+fig, ax = plt.subplots()
 for i in range(len(degThetas)):
 	degTheta = degThetas[i]
 	print("Calculating for theta = ", degTheta, "deg")
@@ -196,7 +196,46 @@ for i in range(len(degThetas)):
 	print("* Distance xf =", xs_c[len(ys_c)-1][1], "m")
 	print("\n")
 
-	#ax.plot(xs, ys, label=degTheta.__str__())
+	ax.plot(xs, ys, label=degTheta.__str__())
 
-#plt.legend(loc='upper left')
-#plt.show()
+hasFriction = False
+fFactor = 0
+for i in range(len(degThetas)):
+    degTheta = degThetas[i]
+    print("Calculating for theta = ", degTheta, "deg")
+
+    # Solve for dvy/dt, dvx/dt first
+    vs = (eulerForwardSolveXY(lambda t, vx, vy: (-1) * fFactor * (vx**2 + vy**2) ** (1/2) * vx, lambda t, vy, vx: (-1) * g - fFactor * (vx**2 + vy**2) ** (1/2) * vy, 0, te, v0 * cos(deg2Rad(degTheta)), v0 * sin(deg2Rad(degTheta)), dt))
+
+    # Then simply solve for x and y...
+    # Translate vs to an appropriate data structure (dictionary)
+    vxs = {}
+    vys = {}
+    for i in range(len(vs)):
+        vxs[vs[i][0]] = vs[i][1]
+        vys[vs[i][0]] = vs[i][2]
+
+    xs_c = (eulerForwardSolve(lambda t, x: vxs[t], 0, te, 0, dt))
+    ys_c = (eulerForwardSolve(lambda t, y: vys[t], 0, te, 0, dt, lambda t, y: y <= 0))
+
+    xs = []
+    ys = []
+
+    for i in range(len(ys_c)):
+        xs.append(xs_c[i][1])
+        ys.append(ys_c[i][1])
+
+    # Slice xs to fit ys...
+    xs = xs[0:len(ys)]
+
+    # Compute parameters as required by the exercise.
+    print("* Fall time t =", xs_c[len(ys_c)-1][0], "s")
+    print("* Velocity vx =", vs[len(ys_c)-1][1], "m/s, vy =", vs[len(ys_c)-1][2], "m/s")
+    print("* Speed v =", (vs[len(ys_c)-1][1]**2 + vs[len(ys_c)-1][2]**2)**(1/2), "m/s")
+    print("* Distance xf =", xs_c[len(ys_c)-1][1], "m")
+    print("\n")
+
+    ax.plot(xs, ys, label=degTheta.__str__() + " (Friction off)")
+
+plt.legend(loc='upper left')
+plt.show()

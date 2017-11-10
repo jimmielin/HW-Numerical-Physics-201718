@@ -234,16 +234,20 @@ def spline(xs, ys):
 ex8 = spline([0,3,5,7,9,11,12,13,14,15], [0,1.2,1.7,2.0,2.1,2.0,1.8,1.2,1.0,1.6])
 
 # For plotting the result
-import matplotlib.pyplot as plt 
-fig, ax = plt.subplots()
-xs = [x/100 for x in range(1,1500)]
-ys = [ex8(x) for x in xs]
-ax.plot(xs, ys)
-plt.show()
+# import matplotlib.pyplot as plt 
+# fig, ax = plt.subplots()
+# xs = [x/100 for x in range(1,1500)]
+# ys = [ex8(x) for x in xs]
+# ax.plot(xs, ys)
+# plt.show()
 
 # For 0.1x variances
-xs = [0,3,5,7,9,11,12,13,14,15]
+# xs = [0,3,5,7,9,11,12,13,14,15]
+# for i in range(len(xs)):
+#     print("x =", xs[i] - 0.1, " y =", ex8(xs[i] - 0.1))
+#     print("x =", xs[i], " y =", ex8(xs[i]))
+#     print("x =", xs[i] + 0.1, " y =", ex8(xs[i] + 0.1))
+
+xs = [0.1 * i for i in range(0, 151)]
 for i in range(len(xs)):
-    print("x =", xs[i] - 0.1, " y =", ex8(xs[i] - 0.1))
-    print("x =", xs[i], " y =", ex8(xs[i]))
-    print("x =", xs[i] + 0.1, " y =", ex8(xs[i] + 0.1))
+    print("x =", round(xs[i], 1), "           y =", ex8(xs[i]))

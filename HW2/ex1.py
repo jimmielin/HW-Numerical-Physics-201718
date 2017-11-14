@@ -38,6 +38,7 @@ def factorial(n, isCache = None):
     return factorial_cache[n]
 
 pi = 3.141592653589793
+e  = 2.718281828459045
 # Utility: Cosine Function
 # Uses Taylor Series Approximation for cosine
 # Depends on:
@@ -46,6 +47,9 @@ pi = 3.141592653589793
 # Improved 10-23-2017: If there is a modulo 2pi, remove it for higher
 #   precision.
 def cos(theta):
+    if(isinstance(theta, complex)): # is complex, use complex definition
+        return 0.5*(e**(1j*theta) + e**(-1j*theta))
+
     result = 1
     theta  = abs(theta) # symmetry helps
     while(theta > 2*pi):
@@ -75,6 +79,9 @@ def cos(theta):
 # Improved 10-23-2017: If there is a modulo 2pi, remove it for higher
 #   precision.
 def sin(theta):
+    if(isinstance(theta, complex)): # is complex, use complex definition
+        return 0.5*(e**(1j*theta) - e**(-1j*theta))/1j
+
     result = 0
     if(theta < 0):
         while(theta < (-1)*2*pi):
@@ -94,23 +101,30 @@ def sin(theta):
 # double|complex solveSecant(
 #   lambda f: x, a, b, xmin = None, xmax = None, 
 #   maxIterations = 1000, maxE = 1e-11,
-#   threshold = 1e-5
+#   threshold = 1e-5,
+#   isComplexAware = False
 # )
 # Solves for roots with secant method with given initial values a, b
 # With maximum iteration number maxIterations, or when deltaE <= maxE,
 # or when x overflows beyond [xmin, xmax] closed range.
 # Only returns a root if it does |f(x)| <= threshold, otherwise None.
 # This prevents false positives.
-def solveSecant(f, a, b, xmin = None, xmax = None, maxIterations = 2000, maxE = 1e-15, threshold = 1e-5):
+#
+# If isComplexAware is set to True, the search will also be Complex number aware.
+# In this case, xmin and xmax restrictions are applied on real & imag parts
+# respectively.
+def solveSecant(f, a, b, xmin = None, xmax = None, maxIterations = 2000, maxE = 1e-15, threshold = 1e-5, isComplexAware = False):
     iterCount = 1
     currX = b
     lastX = a
     while(iterCount < maxIterations):
-        if(xmin != None and xmax != None and (currX < xmin or currX > xmax)):
-            if(abs(f(lastX)) > threshold):
-                return None
-            else:
-                return lastX
+        if(xmin != None and xmax != None):
+            if((isComplexAware and (currX.real < xmin.real and currX.imag < xmin.imag) or (currX.real > xmax.real and currX.imag > xmax.real)) or (not isComplexAware and (currX < xmin or currX > xmax))):
+                if(abs(f(lastX)) > threshold):
+                    return None
+                else:
+                    return lastX
+
         if(f(currX) - f(lastX) == 0): # underflow
             break
         (lastX, currX) = (currX, currX - (currX - lastX)/(f(currX) - f(lastX)) * f(currX))
@@ -121,7 +135,7 @@ def solveSecant(f, a, b, xmin = None, xmax = None, maxIterations = 2000, maxE = 
     if(abs(f(currX)) > threshold):
         return None
 
-    # print("* diag solveSecant: called", iterCount, " iterations", flush=True)
+    print("* diag solveSecant: called", iterCount, " iterations to reach", currX, flush=True)
     return currX
 
 # [double|complex] solveAllSecant(
@@ -134,9 +148,16 @@ def solveSecant(f, a, b, xmin = None, xmax = None, maxIterations = 2000, maxE = 
 # within seedDistance, by default 1e4 of maxE
 # Returns a list of all roots that are found, considering all roots within the distance
 # of maxE the same root.
-def solveAllSecant(f, a, b, seedDistance = 0.01, maxE = 1e-15, nudgeFactor = 1e4):
+#
+# If isComplexAware is specified, then Complex-space searching is used instead.
+# The method starts from the reals then seeding across imX in [ia, ib] (specify or arbitrary
+# defaults are used)
+def solveAllSecant(f, a, b, seedDistance = 0.01, maxE = 1e-15, nudgeFactor = 1e4, isComplexAware = False, ia = -100, ib = 100):
     xs = [a + i * seedDistance for i in range(int((b - a)//seedDistance + 1))]
-    rs = [solveSecant(f, x, x + maxE * nudgeFactor, xmin = a, xmax = b, maxE = maxE) for x in xs]
+    if(isComplexAware):
+        xs = [x + ia * 1j + i * seedDistance * 1j for i in range(int((ib-ia)//seedDistance + 1)) for x in xs]
+
+    rs = [solveSecant(f, x, x + maxE * nudgeFactor, xmin = (a if not isComplexAware else a + ia * 1j), xmax = (b if not isComplexAware else b + ib * 1j), maxE = maxE, isComplexAware = isComplexAware) for x in xs]
     
     # comb through the results and retrieves maxE
     # also filtering through some results which don't make much sense
@@ -156,7 +177,8 @@ t0 = 0
 tT = 441.27992928154773
 
 # Actual code for Ex1-(1)
-# d1S = 0.5 * Txd1S**2 = 0 equiv. Txd1S == 0
 # Use x = omega * t instead as a variable, with range 0 ~ 12.566370614359173
-Txd1S = lambda x: 1 + A0 * sin(x) * sin(x / 4) * sin(x / 4)
-print(solveAllSecant(Txd1S, omega * t0, omega * tT, 1e-5, maxE = 1e-10, nudgeFactor = 1e3))
+Txd1S = lambda x: 0.5 * (1 + A0 * sin(x) * sin(x / 4) * sin(x / 4))**2 + 0.5
+
+# Omit the solutions where the Im part < 0
+print(solveAllSecant(Txd1S, omega * t0, omega * tT, 1e-2, maxE = 1e-10, nudgeFactor = 1e3, isComplexAware = True, ia = -0.5))

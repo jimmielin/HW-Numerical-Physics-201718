@@ -113,7 +113,7 @@ def sin(theta):
 # If isComplexAware is set to True, the search will also be Complex number aware.
 # In this case, xmin and xmax restrictions are applied on real & imag parts
 # respectively.
-def solveSecant(f, a, b, xmin = None, xmax = None, maxIterations = 2000, maxE = 1e-15, threshold = 1e-5, isComplexAware = False):
+def solveSecant(f, a, b, xmin = None, xmax = None, maxIterations = 2000, maxE = 1e-15, threshold = 1e-7, isComplexAware = False):
     iterCount = 1
     currX = b
     lastX = a
@@ -125,22 +125,29 @@ def solveSecant(f, a, b, xmin = None, xmax = None, maxIterations = 2000, maxE = 
                 else:
                     return lastX
 
-        if(f(currX) - f(lastX) == 0): # underflow
-            break
-        (lastX, currX) = (currX, currX - (currX - lastX)/(f(currX) - f(lastX)) * f(currX))
+        try:
+            if(f(currX) - f(lastX) == 0): # underflow
+                break
+
+            (lastX, currX) = (currX, currX - (currX - lastX)/(f(currX) - f(lastX)) * f(currX))
+        except OverflowError:
+            # print("* diag solveSecant: **OVERFLOW ERROR**", flush=True)
+            return None
+
         if(abs(lastX - currX) <= maxE):
             break
         iterCount += 1
 
-    if(abs(f(currX)) > threshold):
+    if(abs(f(currX)) > threshold or currX != currX): # last check for isNaN
         return None
 
-    print("* diag solveSecant: called", iterCount, " iterations to reach", currX, flush=True)
+    # print("* diag solveSecant: called", iterCount, " iterations to reach", currX, flush=True)
     return currX
 
 # [double|complex] solveAllSecant(
 #    lambda f: x, a, b, seedDistance = 0.01, maxE = 1e-11,
-#    nudgeFactor = None
+#    nudgeFactor = None,
+#    isMP = True
 # )
 # Attempts to solve for ALL existing roots for (a mostly well-behaved) function
 # By doing some very un-scientific seeding across [a, b]
@@ -152,6 +159,9 @@ def solveSecant(f, a, b, xmin = None, xmax = None, maxIterations = 2000, maxE = 
 # If isComplexAware is specified, then Complex-space searching is used instead.
 # The method starts from the reals then seeding across imX in [ia, ib] (specify or arbitrary
 # defaults are used)
+#
+# If isMP is specified, multiprocessing.dummy-based Multi-Core processing will be used.
+# Please specify the global variable mp_max_threads for the number of pools.
 def solveAllSecant(f, a, b, seedDistance = 0.01, maxE = 1e-15, nudgeFactor = 1e4, isComplexAware = False, ia = -100, ib = 100):
     xs = [a + i * seedDistance for i in range(int((b - a)//seedDistance + 1))]
     if(isComplexAware):
@@ -162,13 +172,43 @@ def solveAllSecant(f, a, b, seedDistance = 0.01, maxE = 1e-15, nudgeFactor = 1e4
     # comb through the results and retrieves maxE
     # also filtering through some results which don't make much sense
     rs = [r for r in rs if not r == None]
-    rs.sort()
-    for i in range(len(rs) - 1):
-        if(rs[i] != None and abs(rs[i] - rs[i+1]) <= maxE):
-            # del rs[i]
-            rs[i] = None
 
-    return [r for r in rs if not r == None]
+    # perform a filter which removes the errors by "rounding" the parts
+    # don't learn from me... this is terrible I won't admit I wrote this
+    targetPrec = abs(int(maxE.__str__().split("e")[1]))
+    rs = [round(r.real, targetPrec) + round(r.imag, targetPrec) * 1j for r in rs]
+
+    # eliminate trivially "same" solutions
+    rs = list(set(rs))
+
+    # if(not isComplexAware):
+    #     rs.sort()
+    # else:
+    #     rs.sort(key = lambda z: z.real)
+    #     rs.sort(key = lambda z: z.imag)
+    #     # x < y then -1, x == y then 0, x > y then 1 is the sort definition
+    #     # warning: this complex "sort" is useful only for eliminating duplicates.
+    #     # it DOES NOT form a proper mathematical sort for complex numbers.
+    
+    # If you want to do maxE-circle based validation then change to len(rs)-1
+    for i in range(len(rs)):
+         if(isComplexAware):
+             if(rs[i].real < a or rs[i].real > b or rs[i].imag < ia or rs[i].imag > ib):
+                 rs[i] = None
+
+    #     if(rs[i] != None and abs(rs[i] - rs[i+1]) <= maxE):
+    #         # del rs[i]
+    #         rs[i] = None
+
+    # pass
+    rs = [r for r in rs if not r == None]
+
+    # diagnostics: remove in production
+    print("*** solveAllSecant diag: we found", len(rs), "roots")
+    for i in range(len(rs)):
+        print("* x =", rs[i], " |f(x)|=", abs(f(rs[i])))
+
+    return rs
 
 # Ex-1 Constants.
 A0 = 2.6509412245864
@@ -176,9 +216,15 @@ omega = 0.02847709533225
 t0 = 0
 tT = 441.27992928154773
 
+########################################################
 # Actual code for Ex1-(1)
 # Use x = omega * t instead as a variable, with range 0 ~ 12.566370614359173
-Txd1S = lambda x: 0.5 * (1 + A0 * sin(x) * sin(x / 4) * sin(x / 4))**2 + 0.5
+Txd1S = lambda t: 0.5 * (1 + A0 * sin(t * omega) * sin(t * omega / 4) * sin(t * omega / 4))**2 + 0.5
 
 # Omit the solutions where the Im part < 0
-print(solveAllSecant(Txd1S, omega * t0, omega * tT, 1e-2, maxE = 1e-10, nudgeFactor = 1e3, isComplexAware = True, ia = -0.5))
+print(solveAllSecant(f = Txd1S, a = t0, b = tT, seedDistance = 50, maxE = 1e-12, nudgeFactor = 1e3, isComplexAware = True, ia = -0.1))
+
+
+########################################################
+# Actual code for Ex1-(2)
+# 

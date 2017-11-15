@@ -1,3 +1,4 @@
+
 ####################################################################
 # Computational Physics, 2017-18 Sem1
 # HW-2 Ex-1
@@ -16,6 +17,13 @@
 #
 # Now Playing: Learn to Love Again - Lawson
 ####################################################################
+
+# DIAGNOSTICS:
+#   Set to 0 for quiet (production mode)
+#   If > 0, various levels (100, 200, 1000) will return gradually
+#   verbose diagnostic messages for the purpose of debugging.
+# Not all functions support a diagnostic output.
+debugLevel = 0
 
 ####################################################################
 # Utility Functions
@@ -94,6 +102,22 @@ def sin(theta):
         result += (-1)**(i+1) * theta**(i*2-1) / factorial(i*2-1)
     return result
 
+# Trapezoid Formula for Integration
+# Num integTrapezoid(f lambda x: y, a, b, h)
+def integTrapezoid(f, a, b, n):
+    global debugLevel
+    
+    result = 0
+    h  = (b - a)/n
+    
+    # Sum over k = 1, ... n-1 for f(x_k)
+    result = h/2 * (f(a) + f(b) + 2*sum([f(a+i*h) for i in range(1,n)]))
+
+    if(debugLevel >= 200):
+        print("* integTrapezoid: integrated from a=", a, "b=", b, " with n=", n, "partitions I=", result, flush=True)
+
+    return result
+
 ####################################################################
 # Subpoint (1)
 # Solve saddle point equation for given p (pz) ts1 ~ ts6
@@ -114,6 +138,7 @@ def sin(theta):
 # In this case, xmin and xmax restrictions are applied on real & imag parts
 # respectively.
 def solveSecant(f, a, b, xmin = None, xmax = None, maxIterations = 2000, maxE = 1e-15, threshold = 1e-7, isComplexAware = False):
+    global debugLevel
     iterCount = 1
     currX = b
     lastX = a
@@ -131,7 +156,8 @@ def solveSecant(f, a, b, xmin = None, xmax = None, maxIterations = 2000, maxE = 
 
             (lastX, currX) = (currX, currX - (currX - lastX)/(f(currX) - f(lastX)) * f(currX))
         except OverflowError:
-            # print("* diag solveSecant: **OVERFLOW ERROR**", flush=True)
+            if(debugLevel > 0):
+                print("* diag solveSecant: **OVERFLOW ERROR**", flush=True)
             return None
 
         if(abs(lastX - currX) <= maxE):
@@ -141,7 +167,9 @@ def solveSecant(f, a, b, xmin = None, xmax = None, maxIterations = 2000, maxE = 
     if(abs(f(currX)) > threshold or currX != currX): # last check for isNaN
         return None
 
-    # print("* diag solveSecant: called", iterCount, " iterations to reach", currX, flush=True)
+    if(debugLevel >= 1000):
+        print("* diag solveSecant: called", iterCount, " iterations to reach", currX, flush=True)
+    
     return currX
 
 # [double|complex] solveAllSecant(
@@ -204,27 +232,65 @@ def solveAllSecant(f, a, b, seedDistance = 0.01, maxE = 1e-15, nudgeFactor = 1e4
     rs = [r for r in rs if not r == None]
 
     # diagnostics: remove in production
-    print("*** solveAllSecant diag: we found", len(rs), "roots")
-    for i in range(len(rs)):
-        print("* x =", rs[i], " |f(x)|=", abs(f(rs[i])))
+    if(debugLevel >= 200):
+        print("*** solveAllSecant diag: we found", len(rs), "roots")
+        for i in range(len(rs)):
+            print("* x =", rs[i], " |f(x)|=", abs(f(rs[i])))
 
     return rs
 
-# Ex-1 Constants.
+# Ex-1 Constants in a.u.
 A0 = 2.6509412245864
 omega = 0.02847709533225
 t0 = 0
 tT = 441.27992928154773
+Ip = 0.5
 
 ########################################################
 # Actual code for Ex1-(1)
 # Use x = omega * t instead as a variable, with range 0 ~ 12.566370614359173
-Txd1S = lambda t: 0.5 * (1 + A0 * sin(t * omega) * sin(t * omega / 4) * sin(t * omega / 4))**2 + 0.5
+Td1S = lambda t: 0.5 * (1 + A0 * sin(t * omega) * sin(t * omega / 4) * sin(t * omega / 4))**2 + Ip
 
 # Omit the solutions where the Im part < 0
-print(solveAllSecant(f = Txd1S, a = t0, b = tT, seedDistance = 50, maxE = 1e-12, nudgeFactor = 1e3, isComplexAware = True, ia = -0.1))
+if __name__ == '__main__':
+    print("* Exercise 1-(1):")
+    print(solveAllSecant(f = Td1S, a = t0, b = tT, seedDistance = 50, maxE = 1e-12, nudgeFactor = 1e3, isComplexAware = True, ia = -0.1))
+    print("\n\n")
 
 
 ########################################################
 # Actual code for Ex1-(2)
-# 
+# Abstracted for every Pz, where Ek=Pz^2/2
+# Returns |Mp0|^2
+def ex12(Pz):
+    global A0, omega, t0, tT, Ip
+    Ek = Pz**2 / 2
+    Td1S = lambda t: 0.5 * (Pz + A0 * sin(t * omega) * sin(t * omega / 4) * sin(t * omega / 4))**2 + 0.5
+    ts = solveAllSecant(f = Td1S, a = t0, b = tT, seedDistance = 50, maxE = 1e-9, nudgeFactor = 1e3, isComplexAware = True, ia = -0.1)
+
+    TdTIS = lambda x: 0.5*(Pz + A0*sin(omega*x)*sin(omega*x/4)*sin(omega*x/4))**2 + Ip
+    TS = lambda t: integTrapezoid(TdTIS, 0, t, 1000)
+
+    Tid2ES = lambda t: 1/(A0*A0*omega*sin(omega*t)*(sin(omega*t/4))**4 + 0.5*A0*A0*omega*(sin(omega*t))**2*(sin(omega*t/4))**3*cos(omega*t/4)) * e**(1j * TS(t))
+
+    fts = [Tid2ES(t) for t in ts]
+    Mp0_spm = -(2 * Ip)**(5/4) / 2**(1/2) * sum(fts)
+
+    return abs(Mp0_spm)**2
+
+if __name__ == '__main__':
+    print("* Exercise 1-(2):")
+    from multiprocessing import pool
+
+    partitions = 1000
+    Pzs  = [0 + (2 / partitions) * i for i in range(partitions + 1)]
+    Eks  = [Pz**2 / 2 for Pz in Pzs]
+
+    MPool = pool.Pool(4)
+    Mp0sqs = MPool.map(ex12, Eks)
+    # Mp0sqs = [ex12(Pz) for Pz in Pzs]
+
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots()
+    ax.plot(Eks, Mp0sqs)
+    plt.show()

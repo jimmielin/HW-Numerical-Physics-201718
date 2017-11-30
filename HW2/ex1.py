@@ -1,4 +1,3 @@
-
 ####################################################################
 # Computational Physics, 2017-18 Sem1
 # HW-2 Ex-1
@@ -16,6 +15,7 @@
 # compatible, and does not support Python 2.
 #
 # Now Playing: Learn to Love Again - Lawson
+#              Kids In The Dark - All Time Low
 ####################################################################
 
 # DIAGNOSTICS:
@@ -28,6 +28,15 @@ debugLevel = 0
 ####################################################################
 # Utility Functions
 ####################################################################
+
+h_default = 0.0001
+# Numerical Differentiation: deriv2F_c
+# deriv2F_c(f = lambda x: f(x), x, h)
+def deriv2F_c(f, x, h = None):
+    if(h == None):
+        h = h_default
+    return (f(x + h) - 2 * f(x) + f(x - h))/(h * h)
+
 # Utility: Factorial Function
 # factorial(n) returns n! (for n in natural number)
 # With Caching w/ Automatic Compilation (to avoid RecursionError)
@@ -55,7 +64,7 @@ e  = 2.718281828459045
 # Improved 10-23-2017: If there is a modulo 2pi, remove it for higher
 #   precision.
 def cos(theta):
-    if(isinstance(theta, complex)): # is complex, use complex definition
+    if(isinstance(theta, complex) or True): # is complex, use complex definition
         return 0.5*(e**(1j*theta) + e**(-1j*theta))
 
     result = 1
@@ -87,7 +96,7 @@ def cos(theta):
 # Improved 10-23-2017: If there is a modulo 2pi, remove it for higher
 #   precision.
 def sin(theta):
-    if(isinstance(theta, complex)): # is complex, use complex definition
+    if(isinstance(theta, complex) or True): # is complex, use complex definition
         return 0.5*(e**(1j*theta) - e**(-1j*theta))/1j
 
     result = 0
@@ -112,10 +121,10 @@ def integTrapezoid(f, a, b, n):
     
     # Sum over k = 1, ... n-1 for f(x_k)
     result = h/2 * (f(a) + f(b) + 2*sum([f(a+i*h) for i in range(1,n)]))
-
+    
     if(debugLevel >= 200):
         print("* integTrapezoid: integrated from a=", a, "b=", b, " with n=", n, "partitions I=", result, flush=True)
-
+    
     return result
 
 ####################################################################
@@ -265,13 +274,18 @@ if __name__ == '__main__':
 def ex12(Pz):
     global A0, omega, t0, tT, Ip
     Ek = Pz**2 / 2
-    Td1S = lambda t: 0.5 * (Pz + A0 * sin(t * omega) * sin(t * omega / 4) * sin(t * omega / 4))**2 + 0.5
+    Td1S = lambda t: 0.5 * (Pz + A0 * sin(t * omega) * sin(t * omega / 4) * sin(t * omega / 4))**2 + Ip
     ts = solveAllSecant(f = Td1S, a = t0, b = tT, seedDistance = 50, maxE = 1e-9, nudgeFactor = 1e3, isComplexAware = True, ia = -0.1)
 
     TdTIS = lambda x: 0.5*(Pz + A0*sin(omega*x)*sin(omega*x/4)*sin(omega*x/4))**2 + Ip
     TS = lambda t: integTrapezoid(TdTIS, 0, t, 1000)
 
-    Tid2ES = lambda t: 1/(A0*A0*omega*sin(omega*t)*(sin(omega*t/4))**4 + 0.5*A0*A0*omega*(sin(omega*t))**2*(sin(omega*t/4))**3*cos(omega*t/4)) * e**(1j * TS(t))
+    S = lambda t: Ip*t + 0.00104167/omega * (-160*A0*Pz + 30*(3*A0**2 + 16*Pz**2)*t*omega + A0*(160*Pz*(3*cos(omega*t/2)-3*cos(omega*t)+cos(3*omega*t/2))+A0*(-240*sin(omega*t/2)+15*sin(omega*t)+40*sin(3*omega*t/2)-45*sin(2*omega*t)+24*sin(5*omega*t/2)-5*sin(3*omega*t))))
+
+
+
+    d2S = lambda t: 0.5*A0*omega*sin(omega*t/4)*(2*cos(omega*t)*sin(omega*t/4) + cos(omega*t/4)*sin(omega*t)) * (Pz + A0*sin(omega*t/4)**2*sin(omega*t))
+    Tid2ES = lambda t: 1/d2S(t) * e**(1j * S(t))
 
     fts = [Tid2ES(t) for t in ts]
     Mp0_spm = -(2 * Ip)**(5/4) / 2**(1/2) * sum(fts)
@@ -282,15 +296,52 @@ if __name__ == '__main__':
     print("* Exercise 1-(2):")
     from multiprocessing import pool
 
-    partitions = 1000
+    partitions = 500
     Pzs  = [0 + (2 / partitions) * i for i in range(partitions + 1)]
     Eks  = [Pz**2 / 2 for Pz in Pzs]
 
     MPool = pool.Pool(4)
-    Mp0sqs = MPool.map(ex12, Eks)
-    # Mp0sqs = [ex12(Pz) for Pz in Pzs]
+    Mp0sqs = MPool.map(ex12, Pzs)
+
+    # import matplotlib.pyplot as plt
+    # fig, ax = plt.subplots()
+    # ax.plot(Eks, Mp0sqs)
+    # plt.show()
+
+#####################################################
+# Actual code for Ex1-(3)
+# Direct Integration
+def ex13(Pz):
+    global A0, omega, t0, tT, Ip
+
+    S = lambda t: Ip*t + 0.00104167/omega * (-160*A0*Pz + 30*(3*A0**2 + 16*Pz**2)*t*omega + A0*(160*Pz*(3*cos(omega*t/2)-3*cos(omega*t)+cos(3*omega*t/2))+A0*(-240*sin(omega*t/2)+15*sin(omega*t)+40*sin(3*omega*t/2)-45*sin(2*omega*t)+24*sin(5*omega*t/2)-5*sin(3*omega*t))))
+
+    # Ip = 0.5, 2*Ip = 1
+    # Mp0_diF = lambda Pz: 2**(5/2) * omega * A0 / pi * integTrapezoid(lambda t: (-1)*(Pz + A0*sin(omega*t)*(sin(omega*t/4))**2)*(sin(omega*t/4)**2)*(2*cos(omega*t/2)+3*cos(omega*t)+1)/(Pz**2+A0**2*(sin(omega*t)**2)*(sin(omega*t/4)**4)+2*Ip)**3 * e**(1j * TS(t)), t0, tT, 500)
+    A = lambda t: A0 * sin(omega*t) * sin(omega*t/4)**2
+    q = lambda t: Pz + A(t)
+    E = lambda t: A0 / 8 * (omega * cos(omega*t/2) - 4*omega*cos(omega*t) + 3*omega*cos(3*t*omega/2))
+
+    itg = lambda t: q(t) * E(t) / ((q(t)**2 + 2*Ip)**3) * (e**(1j * S(t)))
+
+    Mp0_di = 2**(7/2) / pi * integTrapezoid(itg, t0, tT, 1000)
+
+    return abs(Mp0_di)**2
+
+if __name__ == '__main__':
+    print("* Exercise 1-(3):")
+    from multiprocessing import pool
+
+
+    partitions = 500
+    Pzs  = [0 + (2 / partitions) * i for i in range(partitions + 1)]
+    Eks  = [Pz**2 / 2 for Pz in Pzs]
+
+    MPool = pool.Pool(4)
+    Mp0disqs = MPool.map(ex13, Pzs)
 
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots()
+    ax.plot(Eks, Mp0disqs)
     ax.plot(Eks, Mp0sqs)
     plt.show()

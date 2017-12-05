@@ -60,7 +60,13 @@ class ArbitraryPrecision:
             strRepUS = strRep.replace('-', '')
 
             # Extract all significant digits
-            self.Base = int(strRep.replace('.', ''))
+            if('e' in strRep): # Oops, too small; have to expand notation
+                # Something like 1e-07... significant digits are before e, then extract the second part and add it to exponent accumulator
+                strRepParts = strRep.split('e')
+                self.Base = int(strRepParts[0].replace('.', ''))
+                Exponent += int(strRepParts[1])
+            else:
+                self.Base = int(strRep.replace('.', ''))
 
             # Count exponent for scientific notation
             if(abs(Base) < 1):
@@ -97,6 +103,13 @@ class ArbitraryPrecision:
                     self.Exponent = Exponent + len(Base.__str__().replace('-', '')) - 1
 
         # print("* ArbitraryPrecision: received (Base =", Base, "Exponent =", Exponent.__str__() + ") Interp Base =", self.Base, ", Exp =", self.Exponent)
+
+    ########  Query Functions ########
+    # bool isInt
+    # Is "Integer"?
+    def isInt(self):
+        # 123456 (123456, 5)
+        return len(self.Base.__str__().replace('-', '')) - 1 == self.Exponent
 
     ########  Output Functions  ########
     # __repr__
@@ -187,6 +200,8 @@ class ArbitraryPrecision:
         if(not isinstance(other, ArbitraryPrecision)):
             return self + ArbitraryPrecision(other)
 
+        # print(self.__repr__(), other.__repr__())
+
         # Calculate Minimum Exponents for Alignment
         meSelf  = 1 + self.Exponent - len(self.Base.__str__().replace('-', ''))
         meOther = 1 + other.Exponent - len(other.Base.__str__().replace('-', ''))
@@ -195,24 +210,52 @@ class ArbitraryPrecision:
         bSelf   = self.Base
         bOther  = other.Base
 
-        # Given minExpPos, e.g. 142.857 is -3, 3.45678 is -5, diff is 2
-        # 14285700 & 345678
-        # 142.85700
-        #   3.45678
-        # ----------
+        # Borrowed Exponents for Calculation
+        bweCalc = max(-meSelf, -meOther)
 
-        # Self's lowest number has a small significant position
+        # Check which we borrowed, and return to the other
         if(meSelf < meOther):
-            diff = meOther - meSelf
-            bOther = bOther * 10**diff # padd fake "significant digits"
+            bOther = bOther * 10**(meOther + bweCalc)
         else:
-            diff = meSelf - meOther
-            bSelf = bSelf * 10**diff
+            bSelf  = bSelf * 10**(meSelf + bweCalc)
+
+        # # Given minExpPos, e.g. 142.857 is -3, 3.45678 is -5, diff is 2
+        # # 14285700 & 345678
+        # # 142.85700
+        # #   3.45678
+        # # ----------
+
+        # # Self's lowest number has a small significant position
+        # if(meSelf < meOther):
+        #     # Borrow digits to align meOther to all significant digits,
+        #     # if it is less than 0.
+        #     # TODO: Refactor this code, this if clause is "bad taste"
+        #     if(meSelf < 0):
+        #         bweCalc = -meSelf
+        #         bSelf = bSelf * 10**bweCalcOffset
+        #         bOther = bOther * 10**bweCalcOffset
+
+        #     # Now align to the lowest precision counterpart
+        #     diff = meOther - meSelf
+        #     bOther = bOther * 10**diff # Add "fake" precision digits...
+        # else:
+        #     if(meOther < 0):
+        #         bweCalc = -meOther
+        #         bSelf = bSelf * 10**bweCalcOffset
+        #         bOther = bOther * 10**bweCalcOffset
+            
+        #     # Now align to the lowest precision counterpart
+        #     diff = meSelf - meOther
+        #     bSelf = bSelf * 10**diff # Add "fake" precision digits...
 
         bSum = bOther + bSelf
-        eSum = min(self.Exponent, other.Exponent)
+        eSum = len(bSum.__str__().replace('-', '')) - 1 - bweCalc
+        # print(bSelf, bOther, bSum, eSum, meSelf, meOther, bweCalc)
+        result = ArbitraryPrecision(Base = bSum, Exponent = eSum, InternalAware = True)
 
-        return ArbitraryPrecision(Base = bSum, Exponent = eSum, InternalAware = True)
+        # print("=", result.__repr__())
+
+        return result
 
     # __sub__ (self - other)
     def __sub__(self, other):
@@ -225,7 +268,7 @@ class ArbitraryPrecision:
         # This means we need to align all problems like this:
         # 1.42951e-5 (142951, -5) x 8.37e4 (837, 4) = 142951 x e(-5-5) x 837 x e(4-2)
         if(not isinstance(other, ArbitraryPrecision)):
-            return self * ArbitraryPrecision(ArbitraryPrecision)
+            return self * ArbitraryPrecision(other)
 
         # Calculate "Borrowed" Exponents for Alignment -- always len() - 1 after removing the sign digit
         bweSelf  = len(self.Base.__str__().replace('-', '')) - 1
@@ -250,7 +293,7 @@ class ArbitraryPrecision:
     # Implements "true" division
     def __truediv__(self, other):
         if(not isinstance(other, ArbitraryPrecision)):
-            return self * ArbitraryPrecision(ArbitraryPrecision)
+            return self / ArbitraryPrecision(other)
 
         # Calculate "Borrowed" Exponents for Alignment -- always len() - 1 after removing the sign digit
         bweSelf  = len(self.Base.__str__().replace('-', '')) - 1
@@ -265,15 +308,45 @@ class ArbitraryPrecision:
         # The signs are all absolute
         opSelf   = bSelf % bOther
         opResult = (bSelf // bOther).__str__() if bSelf // bOther != 0 else ""
-        while(len(opResult.__str__()) < (500 if self.Precision == None else self.Precision) and opSelf != 0):
+        while(len(opResult.__str__()) < (12 if self.Precision == None else self.Precision) and opSelf != 0):
             opSelf = opSelf * 10
             bwePrecision += 1
             opResult = opResult + (opSelf // bOther).__str__()
             opSelf = opSelf % bOther
 
+        opResult = opResult.lstrip('0')
+
         bDiv = int(opResult) * (-1 if (self.Base > 0 and other.Base < 0) or (self.Base < 0 and other.Base > 0) else 1)
         rteDiv = len(opResult) - 1
 
+        # print(self, other)
+        # print(bSelf, bOther, opSelf, opResult)
         # print(self.Exponent, other.Exponent, rteDiv, bweSelf, bweOther, bwePrecision)
         eDiv = self.Exponent - other.Exponent + rteDiv - bweSelf + bweOther - bwePrecision
         return ArbitraryPrecision(Base = bDiv, Exponent = eDiv, InternalAware = True)
+
+    # __pow__ (self ** other)
+    def __pow__(self, other):
+        if(not isinstance(other, ArbitraryPrecision)):
+            return self ** ArbitraryPrecision(other)
+
+        # Check if other is an "Integer" type in ArbitraryPrecision,
+        # as we only support "Integer" types for now.
+        # 123456 (123456, 5)
+        if(not other.isInt()):
+            raise ValueError("ArbitraryPrecision: Currently ** does not support non-integer powers.")
+            return NotImplemented
+        else:
+            rResult = self
+            if(other == 0):
+                if(self == 0):
+                    raise ValueError("ArbitraryPrecision: 0**0 has no mathematical significance")
+
+                return ArbitraryPrecision(1)
+
+            if(other < 0):
+                return ArbitraryPrecision(1) / (self ** (-other))
+            else:
+                for i in range(1, other.Base):
+                    rResult = rResult * self
+                return rResult

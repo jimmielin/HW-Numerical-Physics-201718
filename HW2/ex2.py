@@ -60,7 +60,6 @@ def dHermitePoly(n, x):
 
 # double|ArbitraryPrecision bisectionSolve(
 #   lambda f: x,
-#   lambda df: x,
 #   xmin = None, xmax = None,
 #   maxIterations = 1000,
 #   maxE = 1e-10,
@@ -69,22 +68,25 @@ def dHermitePoly(n, x):
 #
 # A bisection-solver with a behavior similarly
 # compatible with newtonSolve, with exception of x0 omitted
-def bisectionSolve(f, df, xmin = None, xmax = None, maxIterations = 500, maxE = 1e-10, threshold = 1e-7):
+def bisectionSolve(f, xmin = None, xmax = None, maxIterations = 500, maxE = 1e-10, threshold = 1e-7):
     global debugLevel
     iterCount = 1
     a = xmin
     b = xmax
+    if(f(a).sgn() == f(b).sgn()):
+        return None
+
     while(iterCount < maxIterations):
-        c = a + (b - a)/2
+        c = (a + b)/2
         fa = f(a)
         fc = f(c)
-        if(a.sgn() == c.sgn()):
+        if(fa.sgn() == fc.sgn()):
             a = c
         else:
             b = c
         iterCount += 1
 
-    fxx = (f(a) if df != None else f(a)[0])
+    fxx = f(a)
     if(threshold != None and abs(fxx) > threshold or a != a): # last check for isNaN
         if(debugLevel >= 100):
             print("* diag bisectionSolve: after", iterCount, " eliminated", a, " f(x)=", fxx, flush=True)
@@ -94,6 +96,8 @@ def bisectionSolve(f, df, xmin = None, xmax = None, maxIterations = 500, maxE = 
         print("* diag bisectionSolve: called", iterCount, " iterations to reach", a, flush=True)
     
     return a
+
+
 
 # double|ArbitraryPrecision newtonSolve(
 #   lambda f: x, 
@@ -161,7 +165,7 @@ def newtonSolve(f, df, x0, xmin = None, xmax = None, maxIterations = 50, thresho
 # Multithreading Caller
 # This is just a wrapper to avoid functools.partial, solely designed for solveAllNewton on the Hermite Poly
 def _hermite_solve_mpCaller_288(x):
-    return newtonSolve(f = lambda x: HermitePoly(288, x, True), df = None, x0 = x, xmin = ArbitraryPrecision(1, -15, InternalAware = True), xmax = ArbitraryPrecision(30), maxIterations = 10, threshold = None)
+    return newtonSolve(f = lambda x: HermitePoly(288, x, True), df = None, x0 = x, xmin = ArbitraryPrecision(1, -15, InternalAware = True), xmax = ArbitraryPrecision(23.378), maxIterations = 20, threshold = None)
 
 
 # [double|ArbitraryPrecision] solveAllNewton(
@@ -213,9 +217,19 @@ def solveAllNewton(f, df, a, b, partitions = 1000, maxE = 1e-5):
     return rs
 
 # Multithreading Caller
-# This is just a wrapper to avoid functools.partial, solely designed for solveAllBisection on the Hermite Poly with a fixed stepping size 0.01
+# This is just a wrapper to avoid functools.partial, solely designed for solveAllBisection on the Hermite Poly with a fixed stepping size 0.1
 def _hermite_solve_mpCaller_288_bis_1em1(x):
-    return bisectionSolve(f = lambda x: HermitePoly(288, x, True), df = None, xmin = x, xmax = x + 0.1, maxIterations = 100, maxE = 1e-15, threshold = None)
+    return bisectionSolve(f = lambda x: HermitePoly(288, x), xmin = x, xmax = x + 0.1, maxIterations = 100, maxE = 1e-15, threshold = None)
+
+def _hermite_solve_mpCaller_96_bis_1em1(x):
+    return bisectionSolve(f = lambda x: HermitePoly(96, x), xmin = x, xmax = x + 0.1, maxIterations = 100, maxE = 1e-15, threshold = None)
+
+def _hermite_solve_mpCaller_48_bis_1em1(x):
+    return bisectionSolve(f = lambda x: HermitePoly(48, x), xmin = x, xmax = x + 0.1, maxIterations = 100, maxE = 1e-15, threshold = None)
+
+def _hermite_solve_mpCaller_24_bis_1em1(x):
+    return bisectionSolve(f = lambda x: HermitePoly(24, x), xmin = x, xmax = x + 0.1, maxIterations = 100, maxE = 1e-15, threshold = None)
+
 
 # [double|ArbitraryPrecision] solveAllBisection(
 #    lambda f: x,
@@ -268,8 +282,10 @@ def solveAllBisection(f, df, a, b, distance, partitions, maxE = 1e-5):
     return rs
 
 if __name__ == '__main__':
-    print(solveAllNewton(lambda x: HermitePoly(288, x, True), None, ArbitraryPrecision(1, -15, InternalAware = True), ArbitraryPrecision(24), 300))
+    #print(solveAllNewton(lambda x: HermitePoly(288, x, True), None, ArbitraryPrecision(1, -15, InternalAware = True), ArbitraryPrecision(23.4), 500))
 
-    # print(solveAllBisection(lambda x: HermitePoly(288, x, True), None, ArbitraryPrecision(1, -15, InternalAware = True), ArbitraryPrecision(24), 0.1, 240))
+    print(solveAllBisection(lambda x: HermitePoly(288, x, True), None, ArbitraryPrecision(1, -6, InternalAware = True), ArbitraryPrecision(24), 0.1, 240))
+
+    #print(bisectionSolve(lambda x: HermitePoly(288, x), ArbitraryPrecision(11), ArbitraryPrecision(30), threshold = None))
 
 # print(HermitePoly(1500, ArbitraryPrecision(5.122)))

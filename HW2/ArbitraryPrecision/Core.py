@@ -18,10 +18,10 @@ class ArbitraryPrecision:
     # Set to None for "unlimited" precision, limited only by the properties of the
     # mathematical functions and approximations used in this class.
     # "Unlimited" does not, of course, mean truly unlimited.
-    # It is capped at a default of 500-digit precision, which is cut-off when
+    # It is capped at a default of 30-digit precision, which is cut-off when
     # divisions, powers and etc. are performed, which may result in infinite cycling numbers
     # (which we of course cannot store /all/ significant digits for)
-    Precision = None
+    Precision = 30
 
     # Internal Representation of significant digits + sign.
     Base = None
@@ -256,6 +256,11 @@ class ArbitraryPrecision:
         bSum = bOther + bSelf
         eSum = len(bSum.__str__().replace('-', '')) - 1 - bweCalc
         # print(bSelf, bOther, bSum, eSum, meSelf, meOther, bweCalc)
+
+        # cut Base to target precision
+        if(self.Precision != None and len(bSum.__str__()) > self.Precision):
+            bSum = int(bSum.__str__()[0:self.Precision])
+
         result = ArbitraryPrecision(Base = bSum, Exponent = eSum, InternalAware = True)
 
         # print("=", result.__repr__())
@@ -292,6 +297,10 @@ class ArbitraryPrecision:
         bProduct = iProduct
         eProduct = self.Exponent + other.Exponent + rteProduct - bweSelf - bweOther
 
+        # cut Base to target precision
+        if(self.Precision != None and len(bProduct.__str__()) > self.Precision):
+            bProduct = int(bProduct.__str__()[0:self.Precision])
+
         return ArbitraryPrecision(Base = bProduct, Exponent = eProduct, InternalAware = True)
 
     # __truediv__ (self / other)
@@ -313,7 +322,7 @@ class ArbitraryPrecision:
         # The signs are all absolute
         opSelf   = bSelf % bOther
         opResult = (bSelf // bOther).__str__() if bSelf // bOther != 0 else ""
-        while(len(opResult.__str__()) < (20 if self.Precision == None else self.Precision) and opSelf != 0):
+        while(len(opResult.__str__()) < (30 if self.Precision == None else self.Precision) and opSelf != 0):
             opSelf = opSelf * 10
             bwePrecision += 1
             opResult = opResult + (opSelf // bOther).__str__()

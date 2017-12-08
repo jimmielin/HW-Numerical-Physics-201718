@@ -303,10 +303,10 @@ if __name__ == '__main__':
     MPool = pool.Pool(4)
     Mp0sqs = MPool.map(ex12, Pzs)
 
-    # import matplotlib.pyplot as plt
-    # fig, ax = plt.subplots()
-    # ax.plot(Eks, Mp0sqs)
-    # plt.show()
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots()
+    ax.plot(Eks, Mp0sqs)
+    plt.show()
 
 #####################################################
 # Actual code for Ex1-(3)
@@ -343,5 +343,5 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots()
     ax.plot(Eks, Mp0disqs)
-    ax.plot(Eks, Mp0sqs)
+    #ax.plot(Eks, Mp0sqs)
     plt.show()

@@ -144,6 +144,11 @@ class ArbitraryPrecision:
 
         return self.Base == other.Base and self.Exponent == other.Exponent
 
+    # __hash__
+    # Returns the unique Integer hash of object
+    def __hash__(self):
+        return hash((self.Base, self.Exponent))
+
     # __ne__ (self != other)
     def __ne__(self, other):
         return not self == other
@@ -154,7 +159,7 @@ class ArbitraryPrecision:
         if(not isinstance(other, ArbitraryPrecision)):
             return self < ArbitraryPrecision(other)
 
-        if(self.Base < 0 and other.Base > 0):
+        if(self.Base <= 0 and other.Base > 0):
             return True
         if(self.Base < 0 and other.Base < 0):
             return -other < -self
@@ -308,7 +313,7 @@ class ArbitraryPrecision:
         # The signs are all absolute
         opSelf   = bSelf % bOther
         opResult = (bSelf // bOther).__str__() if bSelf // bOther != 0 else ""
-        while(len(opResult.__str__()) < (12 if self.Precision == None else self.Precision) and opSelf != 0):
+        while(len(opResult.__str__()) < (20 if self.Precision == None else self.Precision) and opSelf != 0):
             opSelf = opSelf * 10
             bwePrecision += 1
             opResult = opResult + (opSelf // bOther).__str__()
@@ -316,7 +321,11 @@ class ArbitraryPrecision:
 
         opResult = opResult.lstrip('0')
 
+        if(len(opResult) == 0):
+            return ArbitraryPrecision(0)
+
         bDiv = int(opResult) * (-1 if (self.Base > 0 and other.Base < 0) or (self.Base < 0 and other.Base > 0) else 1)
+
         rteDiv = len(opResult) - 1
 
         # print(self, other)
@@ -350,3 +359,7 @@ class ArbitraryPrecision:
                 for i in range(1, other.Base):
                     rResult = rResult * self
                 return rResult
+
+    # sgn(self)
+    def sgn(self):
+        return self.Base > 0

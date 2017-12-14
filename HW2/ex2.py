@@ -284,8 +284,8 @@ def solveAllBisection(f, df, a, b, distance, partitions, maxE = 1e-5):
 if __name__ == '__main__':
     #print(solveAllNewton(lambda x: HermitePoly(288, x, True), None, ArbitraryPrecision(1, -15, InternalAware = True), ArbitraryPrecision(23.4), 500))
 
-    print(solveAllBisection(lambda x: HermitePoly(288, x, True), None, ArbitraryPrecision(1, -6, InternalAware = True), ArbitraryPrecision(24), 0.1, 240))
+    # print(solveAllBisection(lambda x: HermitePoly(288, x, True), None, ArbitraryPrecision(1, -6, InternalAware = True), ArbitraryPrecision(24), 0.1, 240))
 
     #print(bisectionSolve(lambda x: HermitePoly(288, x), ArbitraryPrecision(11), ArbitraryPrecision(30), threshold = None))
 
-# print(HermitePoly(1500, ArbitraryPrecision(5.122)))
+    print(HermitePoly(288, ArbitraryPrecision(5.122)))

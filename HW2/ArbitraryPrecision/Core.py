@@ -21,7 +21,7 @@ class ArbitraryPrecision:
     # It is capped at a default of 30-digit precision, which is cut-off when
     # divisions, powers and etc. are performed, which may result in infinite cycling numbers
     # (which we of course cannot store /all/ significant digits for)
-    Precision = 30
+    Precision = None
 
     # Internal Representation of significant digits + sign.
     Base = None
@@ -322,7 +322,7 @@ class ArbitraryPrecision:
         # The signs are all absolute
         opSelf   = bSelf % bOther
         opResult = (bSelf // bOther).__str__() if bSelf // bOther != 0 else ""
-        while(len(opResult.__str__()) < (30 if self.Precision == None else self.Precision) and opSelf != 0):
+        while(len(opResult.__str__()) < (50 if self.Precision == None else self.Precision) and opSelf != 0):
             opSelf = opSelf * 10
             bwePrecision += 1
             opResult = opResult + (opSelf // bOther).__str__()

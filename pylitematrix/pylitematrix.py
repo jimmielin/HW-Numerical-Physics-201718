@@ -1,7 +1,7 @@
 ####################################################################
 # The Lightweight Matrix Library, Python 3+
 # (c) 2017 Haipeng Lin <linhaipeng@pku.edu.cn>
-# Version 1710.02
+# Version 1710.09
 #
 # edu.jimmielin.pylitematrix
 #
@@ -16,8 +16,8 @@
 # recursion, etc...
 # <3 Haskell (sadly its not allowed in our Homework Assignments)
 ####################################################################
-
-import math
+# Update 1710.09 
+#   - Added joinBlocks, hjoin, vjoin which joins matrixes horiz/vertically.
 
 class Matrix:
     internal = []
@@ -146,6 +146,16 @@ class Matrix:
     # ( BL | BR )
     def splitBlocks(self, r, c):
         return (self.subMatrix(1, r, 1, c), self.subMatrix(1, r, c + 1, self.ncols()), self.subMatrix(r + 1, self.nrows(), 1, c), self.subMatrix(r + 1, self.nrows(), c + 1, self.nrows()))
+
+    # hjoin(self, other):
+    # Horizontally joins two matrices with the same number of rows
+    # (self | other)
+    def hjoin(self, other):
+        if(self.nrows() != other.nrows()):
+            raise ValueError("Cannot hjoin matrices of different row number")
+        # Join each row first, then flatten and rejoin
+        return self.fromList_(self.nrows(), self.ncols() + other.ncols(), sum([self.internal[i] + other.internal[i] for i in range(len(self.internal))]))
+
 
     # elem(i, j)
     # Get [i, j] in matrix

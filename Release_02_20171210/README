@@ -1,0 +1,37 @@
+################################################
+# COMPUTATIONAL PHYSICS, HW #2                 #
+# RELEASE NOTES                                #
+################################################
+
+1. Structure
+Source code is available at src/ and partial raw results are in results/
+For a complete explanation please check the attached PDF documentation.
+
+2. Running Environment
+This code has been tested with v3.6.2 on MSYS_NT.
+The following external packages are RECOMMENDED, but NOT REQUIRED:
+* multiprocessing.pool
+* time
+
+The following external packages are OPTIONAL:
+* matplotlib.pyplot
+
+3. Memory Usage and Performance Requirements
+Default configurations should be able to run on all machines.
+Performance may vary depending on both single and multi-core performance.
+
+4. Threading
+Multi-threading is used in the following components:
+	* ex1 						solveAllSecant
+	* ex2/2-24/2-48/2-96		solveAllBisection, solveAllNewton
+The multithreading code is configured for a 8-core/thread configuration. For configuration info, please check the attached
+PDF documentation.
+
+5. Contact Information
+	** IF THERE ARE ANY ISSUES WITH THE CODE, DOCUMENTATION OR RESULTS THAT DO NOT MATCH UP WITH REFERENCE RESULTS
+	** PLEASE CONTACT ME IMMEDIATELY.
+
+	Haipeng Lin, linhaipeng@pku.edu.cn || jimmie.lin@gmail.com  		+86 186 0017 9744
+
+
+The author claims full copyright and authorship upon all the code written as homework.

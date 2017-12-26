@@ -74,7 +74,7 @@ debugLevel = 1000
 #   the appropriate core count (mtCoreCount)
 #   - For debugging, turn off multithreading.
 multiThreading = True
-mtCoreCount    = 8
+mtCoreCount    = 3
 if(multiThreading):
     from multiprocessing import pool
 
@@ -145,7 +145,7 @@ def cos(theta):
 # Mostly adapted from HW-1 Ex-5
 ####################################################################
 # Euler Forward Method, for XY coupled situation
-# eulerForwardSolve(\t, yx, yy -> f(t,yx), \t, yy, yx -> f(t,yy), a, b, x0, y0, dt = None)
+# eulerForwardSolveXY(\t, yx, yy -> f(t,yx), \t, yy, yx -> f(t,yy), a, b, x0, y0, dt = None)
 # If timestep dt is none, then a default value will be used given N = 1000 partitions
 # Returns the values for all the partitioned f(t_i) in a tuple (t_i, x_i, y_i)
 #
@@ -222,14 +222,66 @@ def genElectronIC(t):
 # Generate ES-many electron initial conditions for given time.
 def genElectronICMulti(t):
     if(debugLevel >= 500):
-        print("* diag genElectronICMulti: generating samples for t =", t)
+        print("* diag genElectronICMulti: generating samples for t =", t, flush=True)
     return [(t, genElectronIC(t)) for i in range(ES)]
 
 ####################################################################
 # TIME EVOLUTION OPERATORS
 ####################################################################
-# (t, (x, y, vx, vy))
-# 
+# (t, (x, y, vx, vy)) electronTimeEvolLaser((t, (x, y, vx, vy)))
+# Evolves given electron through time 
+def electronTimeEvolLaser(inpt):
+    if(debugLevel >= 1000):
+        print("* diag electronTimeEvolLaser: input ", inpt, flush=True)
+
+    if(inpt[0] >= Tf):
+        # already fully evolved
+        return inpt
+
+    # To evolve through time, first integrate acceleration (dv/dt) -> velocity...
+    # Force generators:
+    # EM field --
+    _Ex = lambda t, x, y: Ex(t)
+    _Ey = lambda t, x, y: Ey(t)
+    # Coulomb Potential (in force form 1/r^2) -- 
+    _Cmod = lambda t, x, y: 1/(x**2 + y**2 + 0.04)
+
+    # Initialize Internal State
+    try:
+        x = inpt[1][0]
+        y = inpt[1][1]
+        vx = inpt[1][2]
+        vy = inpt[1][3]
+    except IndexError:
+        print(inpt)
+        raise IndexError("** Above are diagnostics for IndexError **")
+
+    # Number of samples
+    NS = int(((Tf - inpt[0])/TS)//1 + 1)
+    Ts = [inpt[0] + (Tf - inpt[0])/NS * i for i in range(NS + 1)]
+
+    # Evolve for each timestep:
+    for t_ptr in range(len(Ts)):
+        t = Ts[t_ptr]
+        r = (x**2 + y**2) ** (1/2)
+
+        # Generate forces...
+        Cmod = _Cmod(t, x, y)
+        Fx = _Ex(t, x, y) - x/r * Cmod
+        Fy = _Ey(t, x, y) - y/r * Cmod
+
+        # Integrate one step towards F-direction to get velocities...
+        (vx, vy) = (vx + Fx * TS, vy + Fy * TS)
+
+        # Integrate one step towards V-direction to get Xs
+        (x, y) = (x + vx * TS, y + vy * TS)
+
+        # ...debug?
+        if(debugLevel >= 1000):
+            print("* diag electronTimeEvolLaser evolved under timestep for ", (t, x, y, vx, vy), flush=True)
+
+    return (t, (x, y, vx, vy))
+
 
 # Main Runner
 # This clause is ESSENTIAL for Multiprocessing to perform properly.
@@ -264,7 +316,9 @@ if __name__ == '__main__':
         # this is so we keep track of each electron in time and facilitates parrying
         # in multiprocessing.pool.
         MPool = pool.Pool(mtCoreCount)
-        ICs[i] = MPool.map(electronTimeEvolLaser, ICs[i])
+        Es = MPool.map(electronTimeEvolLaser, Es)
+
+        print(Es)
     else:
         raise NotImplementedError("Non-multiprocessing based code is unsupported at the moment.")
 

@@ -36,13 +36,22 @@
 ####################################################################
 
 # Electric Field Configuration
-LightMode = "linear"
+LightMode = "elliptical"
 if(LightMode == "linear"):
     Ex = lambda t: 0.075525 * (cos(0.00712509*t)**2) * cos(0.057*t) - 0.0188815 * cos(0.00712509*t) * sin(0.00712509*t) * sin(0.057*t)
     Ey = lambda t: 0
+    # Ex_max = 0.0419221 (t = +/- 102.851)
+    Ex_max = 0.0419221
+    Ey_max = 0
+    E_max  = Ex_max
 elif(LightMode == "elliptical"):
     Ex = lambda t: 0.0675516 * (cos(0.00712509*t))**2 * cos(0.057*t) - 0.0168881 * sin(0.00712509*t) * sin(0.057*t) * cos(0.00712509*t)
     Ey = lambda t: -0.00844405 * cos(0.00712509*t) * cos(0.057*t) * sin(0.00712509*t) - 0.0337758 * (cos(0.00712509*t))**2 * sin(0.057*t)
+    # Ex_max = 0.0374962 (t = +/- 102.851)
+    # Ey_max = 0.0326369 (t = +/- 25.9684)
+    Ex_max = 0.0374962
+    Ey_max = 0.0326369
+    E_max = 0.0675516 # (t = -2.34282e-8)
 else:
     raise ValueError("LightMode must be either linear or elliptical")
 
@@ -54,13 +63,13 @@ T0 = -2 * 110.23
 Tf =  2 * 110.23
 
 # Sampling Rate
-S  = 100
+S  = 200
 
 # How many electron samples per time sample?
 ES = 100
 
 # Time-evolution timestep
-TS = 1e-3
+TS = 1
 
 # DIAGNOSTICS:
 #   Set to 0 for quiet (production mode)
@@ -74,9 +83,15 @@ debugLevel = 1000
 #   the appropriate core count (mtCoreCount)
 #   - For debugging, turn off multithreading.
 multiThreading = True
-mtCoreCount    = 3
+mtCoreCount    = 1
 if(multiThreading):
     from multiprocessing import pool
+
+# GENERATE PLOTS?
+#   If yes, matplotlib.pyplot must be provided.
+genPlots      = True
+if(genPlots):
+    import matplotlib.pyplot as plot
 
 ####################################################################
 # RANDOMIZER FUNCTIONS
@@ -139,33 +154,6 @@ def cos(theta):
     r = 0.5*(e**(1j*theta) + e**(-1j*theta))
     return (r.real if not isinstance(theta, complex) else r)
 
-####################################################################
-# DIFFERENTIAL EQUATION SOLVING FUNCTIONS (EULER)
-# XY 2-DIMENSIONAL
-# Mostly adapted from HW-1 Ex-5
-####################################################################
-# Euler Forward Method, for XY coupled situation
-# eulerForwardSolveXY(\t, yx, yy -> f(t,yx), \t, yy, yx -> f(t,yy), a, b, x0, y0, dt = None)
-# If timestep dt is none, then a default value will be used given N = 1000 partitions
-# Returns the values for all the partitioned f(t_i) in a tuple (t_i, x_i, y_i)
-#
-# FIXME: default 1000 partitions is completely arbitrary
-def eulerForwardSolveXY(fx, fy, a, b, x0, y0, dt = None):
-    # Euler forward method
-    k = 0
-    if(dt != None):
-        h = dt    # timestep given
-    else:
-        h = (b-a)/1000
-    xn = a
-    ys = [(a,x0,y0)]
-
-    while((xn) <= b): # do a little nudging because python's double is a little too sensitive
-        xn += h
-        ys.append((xn, ys[-1][1] + h * fx(xn, ys[-1][1], ys[-1][2]), ys[-1][2] + h * fy(xn, ys[-1][2], ys[-1][1])))
-
-    return ys
-
 
 ####################################################################
 # INITIAL CONDITION GENERATOR
@@ -187,20 +175,30 @@ def genElectronIC(t):
     # Randomize a direction for v_perp
     vpD  = (1 if LCGRand() >= 0.5 else -1)
 
-    # Distribution (without constant w.r.t. E-terms)
-    Wd   = lambda vp: e**(-vp*vp/E)
+    # Distribution (WITH constant w.r.t. E-terms because it affects the overall E-vprep distribution)
+    Wd   = lambda vp: 1/E**2 * e**(-2/(3*E)) * e**(-vp*vp/E)
+    WdM  = 1/E_max**2 * e**(-2/(3*E_max))# * e**(-vp*vp/E_max)
+
+    # Count maximum iterations.
+    # If we fail to make a sample for this very small E, then it doesn't exist.
+    # A maximum of 500 tries is made.
+    iterations = 0
 
     # Randomize v_perp's modulo (vpM) to fit distribution
     # WTarget = e**(-2/(3*E)) / (E*E) is even not necessary because
     # we only need to judge whether Target * \xi_2 <= f(\delta)
     # and this cancels out the regular terms. So we set target as 1.
     while(1 == 1):
-        d = LCGRand() * 0.1    # Cap to a certain limit, noting v < c = 137
-        ir_xi2 = LCGRand()
+        d = LCGRand() * 0.5    # Cap to a certain limit, noting v < c = 137
+        ir_xi2 = WdM * LCGRand()
         ir_Wd = Wd(d)
         if(ir_xi2 <= ir_Wd):
             vp = d
             break
+        else:
+            iterations += 1
+            if(iterations > 100):
+                return None
 
     # Now we have vp (v_perp) and its direction
     vp = vp * vpD
@@ -216,6 +214,7 @@ def genElectronIC(t):
     x  = -r0*cosT
     y  = -r0*sinT
 
+
     return (x, y, vx, vy)
 
 # [(4-tuple)] genElectronICMulti(t)
@@ -223,7 +222,11 @@ def genElectronIC(t):
 def genElectronICMulti(t):
     if(debugLevel >= 500):
         print("* diag genElectronICMulti: generating samples for t =", t, flush=True)
-    return [(t, genElectronIC(t)) for i in range(ES)]
+    res = [(t, genElectronIC(t)) for i in range(ES)]
+    # If samples are unavailable, remove these elements...
+    res = [x for x in res if x[1] != None]
+
+    return res
 
 ####################################################################
 # TIME EVOLUTION OPERATORS
@@ -247,14 +250,10 @@ def electronTimeEvolLaser(inpt):
     _Cmod = lambda t, x, y: 1/(x**2 + y**2 + 0.04)
 
     # Initialize Internal State
-    try:
-        x = inpt[1][0]
-        y = inpt[1][1]
-        vx = inpt[1][2]
-        vy = inpt[1][3]
-    except IndexError:
-        print(inpt)
-        raise IndexError("** Above are diagnostics for IndexError **")
+    x = inpt[1][0]
+    y = inpt[1][1]
+    vx = inpt[1][2]
+    vy = inpt[1][3]
 
     # Number of samples
     NS = int(((Tf - inpt[0])/TS)//1 + 1)
@@ -271,15 +270,89 @@ def electronTimeEvolLaser(inpt):
         Fy = _Ey(t, x, y) - y/r * Cmod
 
         # Integrate one step towards F-direction to get velocities...
-        (vx, vy) = (vx + Fx * TS, vy + Fy * TS)
-
         # Integrate one step towards V-direction to get Xs
-        (x, y) = (x + vx * TS, y + vy * TS)
+        (x, y, vx, vy) = (x + vx * TS, y + vy * TS, vx + Fx * TS, vy + Fy * TS)
 
         # ...debug?
         if(debugLevel >= 1000):
             print("* diag electronTimeEvolLaser evolved under timestep for ", (t, x, y, vx, vy), flush=True)
 
+    if(debugLevel > 0):
+        print("*", flush=True, end='')
+    return (t, (x, y, vx, vy))
+
+# (t, (x, y, vx, vy)) electronTimeEvolLaserMN((t, (x, y, vx, vy)))
+# Evolves given electron through time (Using Milne 4-degree method)
+def electronTimeEvolLaserMN(inpt):
+    if(inpt[0] >= Tf):
+        # already fully evolved
+        return inpt
+
+    # To evolve through time, first integrate acceleration (dv/dt) -> velocity...
+    # Force generators:
+    # EM field --
+    _Ex = lambda t, x, y: Ex(t)
+    _Ey = lambda t, x, y: Ey(t)
+    # Coulomb Potential (in force form 1/r^2) -- 
+    _Cmod = lambda t, x, y: 1/(x**2 + y**2 + 0.04)
+
+    # Initialize Internal State
+    xs = [inpt[1][0]]
+    ys = [inpt[1][1]]
+    vxs = [inpt[1][2]]
+    vys = [inpt[1][3]]
+
+    # Number of samples
+    NS = int(((Tf - inpt[0])/TS)//1 + 1)
+    Ts = [inpt[0] + (Tf - inpt[0])/NS * i for i in range(NS + 1)]
+
+    # Jump first 4 timesteps to initialize state -- using Euler
+    for t_ptr in range(1, 4): # 1, 2, 3
+        t = Ts[t_ptr]
+
+        x = xs[t_ptr - 1]
+        y = ys[t_ptr - 1]
+        vx = vxs[t_ptr - 1]
+       	vy = vys[t_ptr - 1]
+
+        r = (x**2 + y**2) ** (1/2)
+
+        # Generate forces...
+        Cmod = _Cmod(t, x, y)
+        Fx = _Ex(t, x, y) - x/r * Cmod
+        Fy = _Ey(t, x, y) - y/r * Cmod
+
+        # Integrate one step towards F-direction to get velocities...
+        # Integrate one step towards V-direction to get Xs
+        (x, y, vx, vy) = (x + vx * TS, y + vy * TS, vx + Fx * TS, vy + Fy * TS)
+        xs.append(x)
+        ys.append(y)
+        vxs.append(vx)
+        vys.append(vy)
+
+    # Evolve for each timestep:
+    for t_ptr in range(4, len(Ts)):
+        t = Ts[t_ptr]
+
+        # Force GENERATORS
+        _r   = lambda x, y: (x**2 + y**2) ** (1/2)
+        __Fx = lambda t, x, y: _Ex(t, x, y) - x/_r(x, y) * _Cmod(t, x, y)
+        __Fy = lambda t, x, y: _Ey(t, x, y) - y/_r(x, y) * _Cmod(t, x, y)
+
+        # y(n) = y(n-4) + 4h/3 * (2y'(n-1) - y'(n-2) + 2y'(n-3))
+        # So we need data for n-1, n-2 & n-3 to get n
+        # This is the "Milne 4-multistep method"
+        vxs.append(vxs[t_ptr - 4] + 4*TS/3 * (2*__Fx(Ts[t_ptr - 1], xs[t_ptr - 1], ys[t_ptr - 1]) - __Fx(Ts[t_ptr - 2], xs[t_ptr - 2], ys[t_ptr - 2]) + 2*__Fx(Ts[t_ptr - 3], xs[t_ptr - 3], ys[t_ptr - 3])))
+        vys.append(vys[t_ptr - 4] + 4*TS/3 * (2*__Fy(Ts[t_ptr - 1], xs[t_ptr - 1], ys[t_ptr - 1]) - __Fy(Ts[t_ptr - 2], xs[t_ptr - 2], ys[t_ptr - 2]) + 2*__Fy(Ts[t_ptr - 3], xs[t_ptr - 3], ys[t_ptr - 3])))
+
+        xs.append(xs[t_ptr - 4] + 4*TS/3 * (2*vxs[t_ptr - 1] - vxs[t_ptr - 2] + 2*vxs[t_ptr - 3]))
+        ys.append(ys[t_ptr - 4] + 4*TS/3 * (2*vys[t_ptr - 1] - vys[t_ptr - 2] + 2*vys[t_ptr - 3]))
+
+        if(debugLevel >= 1000):
+            print("* diag electronTimeEvolLaserNM evolved under timestep for ", (t, xs[t_ptr], ys[t_ptr], vxs[t_ptr], vys[t_ptr]), flush=True)
+
+    if(debugLevel > 0):
+        print("*", flush=True, end='')
     return (t, (x, y, vx, vy))
 
 
@@ -287,6 +360,18 @@ def electronTimeEvolLaser(inpt):
 # This clause is ESSENTIAL for Multiprocessing to perform properly.
 # Otherwise threads will not fork correctly.
 if __name__ == '__main__':
+    print("********************************************")
+    print("* COMPUTATIONAL PHYSICS, HW-3 Ex-1         *")
+    print("* (c) 2017-2018 Haipeng Lin                *")
+    print("********************************************")
+    if(multiThreading == True):
+        print("* MULTITHREADING IS ENABLED.               *")
+    else:
+        print("* [WARNING] Running on SINGLE-THREADED MODE*")
+
+    print("********************************************\n")
+
+    print("Generating initial samples...", end='', flush=True)
     # GENERATE INITIAL SAMPLES
     # Perform a sampling of T
     Ts = [T0 + (Tf - T0)/S * i for i in range(S)]
@@ -304,10 +389,14 @@ if __name__ == '__main__':
     else:
         raise NotImplementedError("Non-multiprocessing based code is unsupported at the moment.")
 
+    print(" OK", flush=True)
+    print("Flattening Data Structure...", end='', flush=True)
     # Flatten list -- as they're 2,4-tuples with time built-in we no longer need to separate by
     # initial condition
     # Es = Electron Array
     Es = sum(ICs, [])
+    print(" OK", flush=True)
+    print("Time Evolution (Laser T)...", end='', flush=True)
 
     # Evolve all through time in multiprocessing
     # Using timestep TS
@@ -317,9 +406,50 @@ if __name__ == '__main__':
         # in multiprocessing.pool.
         MPool = pool.Pool(mtCoreCount)
         Es = MPool.map(electronTimeEvolLaser, Es)
-
-        print(Es)
     else:
         raise NotImplementedError("Non-multiprocessing based code is unsupported at the moment.")
 
+    print(" OK", flush=True)
+    print("Flattening Structure for p_\\infty...", end='', flush=True)
+    
+    #   0       10 11  12  13
+    # [(220.46, (x, y, vx, vy))]
+    # Non-Laser Time Evolution can be algebraically solved for (see HW-3 Ex-1 eqs. (2))
+    # Iterate through electron samples (Es) and resolve for their PInfX/PInfYs
+    PInfXs = []
+    PInfYs = []
 
+    for i in range(len(Es)):
+        x = Es[i][1][0]
+        y = Es[i][1][1]
+        vx = Es[i][1][2]
+        vy = Es[i][1][3]
+
+        pfSq = vx ** 2 + vy ** 2
+        rf   = (x ** 2 + y ** 2) ** (1/2)
+        Lz   = (x * vy - y * vx)
+        LzSq = Lz ** 2
+
+        PInfSq = pfSq - 2/rf
+        PInfM = PInfSq ** (1/2)
+
+        # If total energy < 0, then it hasn't left the atom but instead has been excited to another state
+        if(PInfSq < 0):
+            continue
+
+        PInfX = PInfM / (1 + PInfSq * LzSq) * (PInfM * (LzSq * vx + y * Lz / rf) - Lz * vy + x / rf)
+        PInfY = PInfM / (1 + PInfSq * LzSq) * (PInfM * (LzSq * vy - x * Lz / rf) + Lz * vx + y / rf)
+
+        # print(vx, PInfX)
+
+        PInfXs.append(PInfX)
+        PInfYs.append(PInfY)
+
+    print(" OK", flush=True)
+
+    if(genPlots == True):
+        plot.hexbin(PInfXs, PInfYs, extent=(-1.5, 1.5, -1.5, 1.5), cmap="hot")
+        plot.colorbar()
+        plot.show()
+    else:
+        print(EPInfsPlot)

@@ -38,20 +38,16 @@
 # Electric Field Configuration
 LightMode = "elliptical"
 if(LightMode == "linear"):
-    Ex = lambda t: 0.075525 * (cos(0.00712509*t)**2) * cos(0.057*t) - 0.0188815 * cos(0.00712509*t) * sin(0.00712509*t) * sin(0.057*t)
+    Ex = lambda t: -0.075525 * (cos(0.00712509*t)**2) * cos(0.057*t) + 0.0188815 * cos(0.00712509*t) * sin(0.00712509*t) * sin(0.057*t)
     Ey = lambda t: 0
     # Ex_max = 0.0419221 (t = +/- 102.851)
-    Ex_max = 0.0419221
-    Ey_max = 0
-    E_max  = Ex_max
+    E_max  = 0.0657197
 elif(LightMode == "elliptical"):
-    Ex = lambda t: 0.0675516 * (cos(0.00712509*t))**2 * cos(0.057*t) - 0.0168881 * sin(0.00712509*t) * sin(0.057*t) * cos(0.00712509*t)
-    Ey = lambda t: -0.00844405 * cos(0.00712509*t) * cos(0.057*t) * sin(0.00712509*t) - 0.0337758 * (cos(0.00712509*t))**2 * sin(0.057*t)
+    Ex = lambda t: -0.0675516 * (cos(0.00712509*t))**2 * cos(0.057*t) + 0.0168881 * sin(0.00712509*t) * sin(0.057*t) * cos(0.00712509*t)
+    Ey = lambda t: 0.00844405 * cos(0.00712509*t) * cos(0.057*t) * sin(0.00712509*t) + 0.0337758 * (cos(0.00712509*t))**2 * sin(0.057*t)
     # Ex_max = 0.0374962 (t = +/- 102.851)
     # Ey_max = 0.0326369 (t = +/- 25.9684)
-    Ex_max = 0.0374962
-    Ey_max = 0.0326369
-    E_max = 0.0675516 # (t = -2.34282e-8)
+    E_max = 0.0675516 # (t = 1.16205e-8)
 else:
     raise ValueError("LightMode must be either linear or elliptical")
 
@@ -63,27 +59,27 @@ T0 = -2 * 110.23
 Tf =  2 * 110.23
 
 # Sampling Rate
-S  = 200
+S  = 8000
 
 # How many electron samples per time sample?
-ES = 100
+ES = 4000
 
 # Time-evolution timestep
-TS = 1
+TS = 1e-1
 
 # DIAGNOSTICS:
 #   Set to 0 for quiet (production mode)
 #   If > 0, various levels (100, 200, 1000) will return gradually
 #   verbose diagnostic messages for the purpose of debugging.
 # Not all functions support a diagnostic output.
-debugLevel = 1000
+debugLevel = 0
 
 # MULTITHREADING SUPPORT:
 #   To speed up the program, enable multithreading below and configure
 #   the appropriate core count (mtCoreCount)
 #   - For debugging, turn off multithreading.
 multiThreading = True
-mtCoreCount    = 1
+mtCoreCount    = 48
 if(multiThreading):
     from multiprocessing import pool
 
@@ -176,29 +172,22 @@ def genElectronIC(t):
     vpD  = (1 if LCGRand() >= 0.5 else -1)
 
     # Distribution (WITH constant w.r.t. E-terms because it affects the overall E-vprep distribution)
-    Wd   = lambda vp: 1/E**2 * e**(-2/(3*E)) * e**(-vp*vp/E)
-    WdM  = 1/E_max**2 * e**(-2/(3*E_max))# * e**(-vp*vp/E_max)
-
-    # Count maximum iterations.
-    # If we fail to make a sample for this very small E, then it doesn't exist.
-    # A maximum of 500 tries is made.
-    iterations = 0
+    Wd   = lambda vp: 1/(E**2) * e**(-2/(3*E)) * e**(-vp*vp/E)
+    WdM  = 1/(E_max**2) * e**(-2/(3*E_max))# * e**(-vp*vp/E_max)
 
     # Randomize v_perp's modulo (vpM) to fit distribution
     # WTarget = e**(-2/(3*E)) / (E*E) is even not necessary because
     # we only need to judge whether Target * \xi_2 <= f(\delta)
     # and this cancels out the regular terms. So we set target as 1.
     while(1 == 1):
-        d = LCGRand() * 0.5    # Cap to a certain limit, noting v < c = 137
+        ir_xi1 = LCGRand() * 10    # Cap to a certain limit, noting v < c = 137
         ir_xi2 = WdM * LCGRand()
-        ir_Wd = Wd(d)
+        ir_Wd = Wd(ir_xi1)
         if(ir_xi2 <= ir_Wd):
-            vp = d
+            vp = ir_xi1
             break
         else:
-            iterations += 1
-            if(iterations > 100):
-                return None
+            return None
 
     # Now we have vp (v_perp) and its direction
     vp = vp * vpD
@@ -214,7 +203,9 @@ def genElectronIC(t):
     x  = -r0*cosT
     y  = -r0*sinT
 
+    # print(r0)
 
+    # return (x, y, vx, vy, vp*vp/E) # for debug only
     return (x, y, vx, vy)
 
 # [(4-tuple)] genElectronICMulti(t)
@@ -225,6 +216,9 @@ def genElectronICMulti(t):
     res = [(t, genElectronIC(t)) for i in range(ES)]
     # If samples are unavailable, remove these elements...
     res = [x for x in res if x[1] != None]
+    
+    if(debugLevel >= 100):
+       print("* diag genElectronICMulti: generated samples for t, num =", t, len(res), flush=True)
 
     return res
 
@@ -255,7 +249,7 @@ def electronTimeEvolLaser(inpt):
     vx = inpt[1][2]
     vy = inpt[1][3]
 
-    # Number of samples
+    # Number of time samples
     NS = int(((Tf - inpt[0])/TS)//1 + 1)
     Ts = [inpt[0] + (Tf - inpt[0])/NS * i for i in range(NS + 1)]
 
@@ -266,90 +260,22 @@ def electronTimeEvolLaser(inpt):
 
         # Generate forces...
         Cmod = _Cmod(t, x, y)
-        Fx = _Ex(t, x, y) - x/r * Cmod
-        Fy = _Ey(t, x, y) - y/r * Cmod
+        Fx = - _Ex(t, x, y) - x/r * Cmod
+        Fy = - _Ey(t, x, y) - y/r * Cmod
 
         # Integrate one step towards F-direction to get velocities...
+        vx = vx + Fx * TS
+        vy = vy + Fy * TS
+
         # Integrate one step towards V-direction to get Xs
-        (x, y, vx, vy) = (x + vx * TS, y + vy * TS, vx + Fx * TS, vy + Fy * TS)
+        x = x + vx * TS 
+        y = y + vy * TS
+
+        # (x, y, vx, vy) = (x + vx * TS, y + vy * TS, vx + Fx * TS, vy + Fy * TS)
 
         # ...debug?
         if(debugLevel >= 1000):
-            print("* diag electronTimeEvolLaser evolved under timestep for ", (t, x, y, vx, vy), flush=True)
-
-    if(debugLevel > 0):
-        print("*", flush=True, end='')
-    return (t, (x, y, vx, vy))
-
-# (t, (x, y, vx, vy)) electronTimeEvolLaserMN((t, (x, y, vx, vy)))
-# Evolves given electron through time (Using Milne 4-degree method)
-def electronTimeEvolLaserMN(inpt):
-    if(inpt[0] >= Tf):
-        # already fully evolved
-        return inpt
-
-    # To evolve through time, first integrate acceleration (dv/dt) -> velocity...
-    # Force generators:
-    # EM field --
-    _Ex = lambda t, x, y: Ex(t)
-    _Ey = lambda t, x, y: Ey(t)
-    # Coulomb Potential (in force form 1/r^2) -- 
-    _Cmod = lambda t, x, y: 1/(x**2 + y**2 + 0.04)
-
-    # Initialize Internal State
-    xs = [inpt[1][0]]
-    ys = [inpt[1][1]]
-    vxs = [inpt[1][2]]
-    vys = [inpt[1][3]]
-
-    # Number of samples
-    NS = int(((Tf - inpt[0])/TS)//1 + 1)
-    Ts = [inpt[0] + (Tf - inpt[0])/NS * i for i in range(NS + 1)]
-
-    # Jump first 4 timesteps to initialize state -- using Euler
-    for t_ptr in range(1, 4): # 1, 2, 3
-        t = Ts[t_ptr]
-
-        x = xs[t_ptr - 1]
-        y = ys[t_ptr - 1]
-        vx = vxs[t_ptr - 1]
-       	vy = vys[t_ptr - 1]
-
-        r = (x**2 + y**2) ** (1/2)
-
-        # Generate forces...
-        Cmod = _Cmod(t, x, y)
-        Fx = _Ex(t, x, y) - x/r * Cmod
-        Fy = _Ey(t, x, y) - y/r * Cmod
-
-        # Integrate one step towards F-direction to get velocities...
-        # Integrate one step towards V-direction to get Xs
-        (x, y, vx, vy) = (x + vx * TS, y + vy * TS, vx + Fx * TS, vy + Fy * TS)
-        xs.append(x)
-        ys.append(y)
-        vxs.append(vx)
-        vys.append(vy)
-
-    # Evolve for each timestep:
-    for t_ptr in range(4, len(Ts)):
-        t = Ts[t_ptr]
-
-        # Force GENERATORS
-        _r   = lambda x, y: (x**2 + y**2) ** (1/2)
-        __Fx = lambda t, x, y: _Ex(t, x, y) - x/_r(x, y) * _Cmod(t, x, y)
-        __Fy = lambda t, x, y: _Ey(t, x, y) - y/_r(x, y) * _Cmod(t, x, y)
-
-        # y(n) = y(n-4) + 4h/3 * (2y'(n-1) - y'(n-2) + 2y'(n-3))
-        # So we need data for n-1, n-2 & n-3 to get n
-        # This is the "Milne 4-multistep method"
-        vxs.append(vxs[t_ptr - 4] + 4*TS/3 * (2*__Fx(Ts[t_ptr - 1], xs[t_ptr - 1], ys[t_ptr - 1]) - __Fx(Ts[t_ptr - 2], xs[t_ptr - 2], ys[t_ptr - 2]) + 2*__Fx(Ts[t_ptr - 3], xs[t_ptr - 3], ys[t_ptr - 3])))
-        vys.append(vys[t_ptr - 4] + 4*TS/3 * (2*__Fy(Ts[t_ptr - 1], xs[t_ptr - 1], ys[t_ptr - 1]) - __Fy(Ts[t_ptr - 2], xs[t_ptr - 2], ys[t_ptr - 2]) + 2*__Fy(Ts[t_ptr - 3], xs[t_ptr - 3], ys[t_ptr - 3])))
-
-        xs.append(xs[t_ptr - 4] + 4*TS/3 * (2*vxs[t_ptr - 1] - vxs[t_ptr - 2] + 2*vxs[t_ptr - 3]))
-        ys.append(ys[t_ptr - 4] + 4*TS/3 * (2*vys[t_ptr - 1] - vys[t_ptr - 2] + 2*vys[t_ptr - 3]))
-
-        if(debugLevel >= 1000):
-            print("* diag electronTimeEvolLaserNM evolved under timestep for ", (t, xs[t_ptr], ys[t_ptr], vxs[t_ptr], vys[t_ptr]), flush=True)
+            print("* diag electronTimeEvolLaser evolved under timestep for ", (t, x, y, vx, vy, Fx, Fy), flush=True)
 
     if(debugLevel > 0):
         print("*", flush=True, end='')
@@ -390,12 +316,51 @@ if __name__ == '__main__':
         raise NotImplementedError("Non-multiprocessing based code is unsupported at the moment.")
 
     print(" OK", flush=True)
+
+    # DEBUG -- Statistical Counting in relation to E
+    # ICCounts = [len(ICss) for ICss in ICs]
+    # import matplotlib.pyplot as plt
+    # fig, ax = plt.subplots()
+    # Es = [(Ex(t)**2 + Ey(t)**2)**(1/2) for t in Ts]
+    # ax.scatter(Es, ICCounts, s=1)
+    # plt.show()
+
     print("Flattening Data Structure...", end='', flush=True)
     # Flatten list -- as they're 2,4-tuples with time built-in we no longer need to separate by
     # initial condition
     # Es = Electron Array
     Es = sum(ICs, [])
     print(" OK", flush=True)
+
+    # DEBUG -- Statistical Counting in relation to vp/E (only when you have a 5th-dimension argument in 2,5-tuple)
+    # vp2dE = [E[1][4] for E in Es]
+    # import matplotlib.pyplot as plt
+    # fig, ax = plt.subplots()
+    # ax.hist(vp2dE, bins = 100)
+    # plt.show()
+
+    # DEBUG -- View final positions of electrons (flattened structure)
+    # xs = []
+    # ys = []
+    # vxs = []
+    # vys = []
+
+    # for i in range(len(Es)):
+    #     xs.append(Es[i][1][0])
+    #     ys.append(Es[i][1][1])
+    #     vxs.append(Es[i][1][2])
+    #     vys.append(Es[i][1][3])
+
+    # plot.hexbin(xs, ys, cmap="hot")
+    # plot.colorbar()
+    # plot.show()
+
+    # plot.hexbin(vxs, vys, extent=(-1.5, 1.5, -1.5, 1.5), cmap="hot")
+    # plot.colorbar()
+    # plot.show()
+
+    # exit()
+
     print("Time Evolution (Laser T)...", end='', flush=True)
 
     # Evolve all through time in multiprocessing
@@ -438,9 +403,9 @@ if __name__ == '__main__':
             continue
 
         PInfX = PInfM / (1 + PInfSq * LzSq) * (PInfM * (LzSq * vx + y * Lz / rf) - Lz * vy + x / rf)
-        PInfY = PInfM / (1 + PInfSq * LzSq) * (PInfM * (LzSq * vy - x * Lz / rf) + Lz * vx + y / rf)
+        PInfY = -PInfM / (1 + PInfSq * LzSq) * (PInfM * (LzSq * vy - x * Lz / rf) + Lz * vx + y / rf)
 
-        # print(vx, PInfX)
+        # print(vx, PInfX, vy, PInfY) # not too much difference either...
 
         PInfXs.append(PInfX)
         PInfYs.append(PInfY)
@@ -448,8 +413,15 @@ if __name__ == '__main__':
     print(" OK", flush=True)
 
     if(genPlots == True):
-        plot.hexbin(PInfXs, PInfYs, extent=(-1.5, 1.5, -1.5, 1.5), cmap="hot")
+        plot.hexbin(PInfXs, PInfYs, extent=(-1.5, 1.5, -1.5, 1.5), cmap="plasma")
         plot.colorbar()
+        plot.show()
+
+        # Generate Histograms for PInfXs & PInfYs
+        histX = plot.hist(PInfXs, bins=150)
+        plot.show()
+
+        plot.hist(PInfYs, bins=150)
         plot.show()
     else:
         print(EPInfsPlot)

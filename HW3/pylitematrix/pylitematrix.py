@@ -220,6 +220,25 @@ class Matrix:
         res = Matrix(self.nrows(), m2.ncols(), lambda i, j: self.dotProduct__(self.getRow(i), m2.getCol(j)))
         return res
 
+    ## Multiply by Vector -- For Tridiagonal Matrices Only
+    # IF YOU KNOW THIS MATRIX IS TRI-DIAGONAL, AND THAT M2 IS A VECTOR,
+    # THEN THIS MULTIPLICATION IS O(n) instead of O(n^3)
+    # Otherwise it will be wrong, obviously.
+    def triMultVector(self, m2):
+        m2l = m2.toList()
+        r = self.nrows()
+        c = self.ncols()
+        if(len(m2l) != c):
+            raise TypeError("")
+
+        flat = [self.internal[0][0] * m2l[0] + self.internal[0][1] * m2l[1]]
+        for rr in range(1, r - 1): # rr is array index #, +1 to get row #
+            flat.append(self.internal[rr][rr-1] * m2l[rr-1] + self.internal[rr][rr] * m2l[rr] + self.internal[rr][rr+1] * m2l[rr+1])
+        flat.append(self.internal[r-1][c-2] * m2l[c-2] + self.internal[r-1][c-1] * m2l[c-1])
+        res = self.fromList_(r, 1, flat)
+
+        return res
+
     # add
     # O(m*n) rather than naive implementation
     def __add__(self, m2):
@@ -228,13 +247,50 @@ class Matrix:
         return self.fromList_(self.nrows(), self.ncols(), [a+b for a, b in zip(self.toList(), m2.toList())])
 
     # invert for unary arithmetic functions
-    def __invert__(self): return self.map(lambda x: -1*x)
+    def __neg__(self): return self.map(lambda x: -1*x)
 
     # subtract
     def __sub__(self, m2):
         if(self.nrows() != m2.nrows() or self.ncols() != m2.ncols()):
             raise TypeError("Cannot add matrices that are not of the same size!")
         return self.fromList_(self.nrows(), self.ncols(), [a-b for a, b in zip(self.toList(), m2.toList())])
+
+    # Inversion of Matrices
+    # Only special cases are provided since otherwise we need to perform Gaussian elimination.
+    def inverse(self):
+        raise NotImplemented("pylitematrix: inverse is not implemented")
+
+    # Inversion of Tridiagonal Matrix
+    # Usmani, R. A. (1994). "Inversion of a tridiagonal jacobi matrix". Linear Algebra and its Applications. 212-213: 413–414. doi:10.1016/0024-3795(94)90414-6.
+    # Huang, Y.; McColl, W. F. (1997). "Analytical inversion of general tridiagonal matrices". Journal of Physics A: Mathematical and General. 30 (22): 7919. doi:10.1088/0305-4470/30/22/026.
+    def triInverse(self):
+        n = self.nrows()
+        if(self.nrows() != self.ncols()):
+            raise TypeError("pylitematrix: cannot invert singular non-square matrix (triInverse)")
+
+        # Provide convenience lambdas to access tridiagonal matrix structures, namely in representations of a, b, c
+        # USES MATHEMATICAL INDEXES - !!! NO BOUNDS CHECKING !!!
+        a = lambda i: self.internal[i-1][i-1]
+        b = lambda i: self.internal[i-1][i]
+        c = lambda i: self.internal[i][i-1]
+
+        # Generate the \theta_i recurrences
+        thetas = [1, a(1)]
+        for i in range(2, n + 1):
+            thetas.append(a(i) * thetas[i-1] - b(i-1) * c(i-1) * thetas[i-2])
+
+        # Generate the \phi_i recurrences
+        phis  = [None] * (n + 2) # total n+2 entries
+        phis[n+1] = 1
+        phis[n]   = a(n)
+        for i in range(2, n + 1):
+            phis[i] = a(i) * phis[i+1] - b(i) * c(i) * phis[i+2]
+
+        from itertools import accumulate
+        import operator
+        # r = Matrix(n, n, lambda i, j: (-1)**(i+j) * accumulate(b[i:j], operator.mul) if i < j else ((-1)**(i+j) * )
+
+        raise NotImplemented("pylitematrix: not implemented triInverse yet")
 
     ## Matrix Pretty-Print
     # adapted from SO#13214809, herein replicated on fair use basis as it

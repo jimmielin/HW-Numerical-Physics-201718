@@ -1,6 +1,6 @@
 ####################################################################
 # Computational Physics, 2017-18 Sem1
-# HW-3 Ex-2 A
+# HW-3 Ex-2 B
 #
 # (c) 2017-2018 Haipeng Lin <linhaipeng@pku.edu.cn>
 # All Rights Reserved.
@@ -56,15 +56,16 @@ def cos(theta):
 # !!!! For homework problems the below parameters given are just fine.
 ####################################################################
 
-n = 32
+n = 16
 h = 0.1
-w1 = 2 * sin(pi/66) # (32+1)*2 = 66
+w1 = 2 * sin(11*pi/34) # (16+1)*2 = 34
 TU = 2 * pi/w1
 
 # Change L here from 160 ~ + time to observe different behavior, for
 # 2) use 160, 4) to 4000 (actually less is already sufficient.)
-L = 4000 * TU/h
+L = 160 * TU/h
 a = 0.25     # alpha
+b = 1        # beta
 
 omega = lambda k: 2 * sin(pi*k/(2*n+2))
 
@@ -100,7 +101,8 @@ def conjGradient2(A, b, x0):
 # MATRIX GENERATORS
 ####################################################################
 Mx = Matrix(n, n, lambda i, j: sin(pi*i*j/(n+1)))
-Q = Matrix(n, 1, lambda i, j: 16 if i == 1 else 0)
+Q = Matrix(n, 1, lambda i, j: 2.828 if i == 11 else 0)
+# 4 = 1/sqrt(2/n=16) ~ 
 
 # Padd with "Mathematical Indexes" for convenience...
 x = [0] + conjGradient2(Mx, Q, Matrix(n, 1, lambda i, j: 0)).toList()
@@ -119,13 +121,13 @@ qs = [[x[i]] if i != 0 and i != (n+1) else [0] for i in range(n+2)]
 ps = []
 for i in range(n+2):
     ps.append([0])
-dps = [[qs[i+1][0] + qs[i-1][0] - 2 * qs[i][0] + a * ((qs[i+1][0]-qs[i][0])**2 - (qs[i][0]-qs[i-1][0])**2)] if i != 0 and i != (n+1) else [0] for i in range(n+2)]
+dps = [[qs[i+1][0] + qs[i-1][0] - 2 * qs[i][0] + b * ((qs[i+1][0]-qs[i][0])**3 - (qs[i][0]-qs[i-1][0])**3)] if i != 0 and i != (n+1) else [0] for i in range(n+2)]
 
 for t in range(1, 5):
     qs[0].append(0)
     qs[n+1].append(0)
     for i in range(1, n+1):
-        dps[i].append(qs[i+1][t-1] + qs[i-1][t-1] - 2 * qs[i][t-1] + a * ((qs[i+1][t-1]-qs[i][t-1])**2 - (qs[i][t-1]-qs[i-1][t-1])**2))
+        dps[i].append(qs[i+1][t-1] + qs[i-1][t-1] - 2 * qs[i][t-1] + b * ((qs[i+1][t-1]-qs[i][t-1])**3 - (qs[i][t-1]-qs[i-1][t-1])**3))
 
         # print(len(ps[i]), len(qs[i]), len(dps[i]))
         # List Indexes... and mathematical indexes
@@ -156,7 +158,7 @@ while t <= L:
     qs[n+1].append(0)
     for i in range(1, n+1):
         try:
-            ps[i].append(ps[i][t-1]+h*(qs[i+1][t-1]+qs[i-1][t-1]-2*qs[i][t-1]+a*((qs[i+1][t-1]-qs[i][t-1])**2-(qs[i][t-1]-qs[i-1][t-1])**2)))
+            ps[i].append(ps[i][t-1]+h*(qs[i+1][t-1]+qs[i-1][t-1]-2*qs[i][t-1]+b*((qs[i+1][t-1]-qs[i][t-1])**3-(qs[i][t-1]-qs[i-1][t-1])**3)))
         except OverflowError:
             print("** FATAL: OVERFLOW **")
             print("* diag: t =", t)
@@ -183,41 +185,47 @@ def E(k,t):
 import matplotlib.pyplot as plot
 
 t = 0
-(E1, E2, E3, E4) = ([], [], [], [])
+(E9, E10, E11, E12, E13) = ([], [], [], [], [])
 Ts = [] # for pyplot plotting
-avgE1 = 0
-avgE2 = 0
-avgE3 = 0
-avgE4 = 0
+sumE9 = 0
+sumE10 = 0
+sumE11 = 0
+sumE12 = 0
+sumE13 = 0
 while t <= L:
     Ts.append(t*h/TU)
-    E1.append(E(1,t))
-    E2.append(E(2,t))
-    E3.append(E(3,t))
-    E4.append(E(4,t))
-    t = t+1
-
-# for i in range(int(500*M/h), int(L)):
-#     avgE1 = E1[i] + avgE1
-#     avgE2 = E2[i] + avgE2
-#     avgE3 = E3[i] + avgE3
-#     avgE4 = E4[i] + avgE4
-
-# avgE1=avgE1/(-500*TU/h+int(L))
-# avgE2=avgE2/(-500*TU/h+int(L))
-# avgE3=avgE3/(-500*TU/h+int(L))
-# avgE4=avgE4/(-500*TU/h+int(L))
-
-# print(avgE1,avgE2,avgE3,avgE4)
+    E9.append(E(9,t))
+    E10.append(E(10,t))
+    E11.append(E(11,t))
+    E12.append(E(12,t))
+    E13.append(E(13,t))
+    t = t + 1
 
 # 2- problem information
 # print(E1[159])
-# print(E1[159], E2[159], E3[159], E4[159])
+# print(E1[159], E10[159], E11[159], E12[159])
 
-plot.plot(Ts, E1, label='E1', lw=1)
-plot.plot(Ts, E2, label='E2', lw=1)
-plot.plot(Ts, E3, label='E3', lw=1)
-plot.plot(Ts, E4, label='E4', lw=1)
+fig, ax = plot.subplots()
+plot.plot(Ts, E9, label='E9', lw=1)
+plot.plot(Ts, E10, label='E10', lw=1)
+plot.plot(Ts, E11, label='E11', lw=1)
+plot.plot(Ts, E12, label='E12', lw=1)
+plot.plot(Ts, E13, label='E13', lw=1)
 plot.legend()
+ax.set_yscale('log')
 
 plot.show()
+
+# 5 - Q2=20
+# for i in range(int(500*M/h), int(L)):
+#     sumE1 = E1[i] + sumE1
+#     sumE10 = E10[i] + sumE10
+#     sumE11 = E11[i] + sumE11
+#     sumE12 = E12[i] + sumE12
+
+# avgE1 = sumE1/(-1000*TU/h+int(L))
+# avgE10 = sumE10/(-1000*TU/h+int(L))
+# avgE11 = sumE11/(-1000*TU/h+int(L))
+# avgE12 = sumE12/(-1000*TU/h+int(L))
+
+# print(avgE1, avgE10, avgE11, avgE12)

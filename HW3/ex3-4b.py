@@ -1,6 +1,6 @@
 ####################################################################
 # Computational Physics, 2017-18 Sem1
-# HW-3 Ex-3-2b
+# HW-3 Ex-3-4b (Drawing Plots)
 #
 # (c) 2017-2018 Haipeng Lin <linhaipeng@pku.edu.cn>
 # All Rights Reserved.
@@ -27,12 +27,34 @@
 # This program is Python 3 (3.6.2 on MSYS_NT)
 # compatible, and does not support Python 2.
 #
-# Now Playing: Top of the World - The Carpenters
+# Now Playing: Where We Belong - Thomas Fiss
 ####################################################################
 
-dk = 0.01
-ks = [-1.5 + i * dk for i in range(0, 301)]
-kprojs = []
+####################################################################
+# CONFIGURABLE PARAMETERS
+# For HW-3 Ex-3
+####################################################################
+
+# x range
+xMin = -600
+xMax =  600
+dx   =  0.1
+
+# t range
+tMin = 0
+tMax = 221 # 2Npi/w
+dt   = 0.1
+
+# Configure Electric Field time-dependency
+E   = lambda t: 0.05338027295 * (sin(0.01423854766 * t))**2 * sin(0.1139083813 * t)
+
+###################################################################
+# Matrix Generators 
+# Most Arithmetics have been pre-computed for faster initialization.
+NX   = int((xMax - xMin)/dx)
+NT   = int((tMax - tMin)/dt)
+
+######### NO USER CONFIGURABLE OPTIONS BEYOND THIS POINT ##########
 
 ####################################################################
 # UTILITY FUNCTIONS
@@ -50,68 +72,28 @@ def cos(theta):
     r = 0.5*(e**(1j*theta) + e**(-1j*theta))
     return (r.real if not isinstance(theta, complex) else r)
 
-####################################################################
-# CONFIGURABLE PARAMETERS
-# For HW-3 Ex-3-2
-#
-# !!! MUST KEEP THIS THE SAME AS EX3-2
-# THIS IS ONLY A UTILITY FILE FOR PLANE WAVE PROJECTION
-####################################################################
-
-# x range
-xMin = -2000
-xMax =  2000
-dx   =     0.1
-
-# t range
-tMin = 0
-tMax = 200 # 2Npi/w
-dt   = 0.05  
-NX   = int((xMax - xMin)/dx)
-NT   = int((tMax - tMin)/dt)
-
-# "Dot Product" two Vector-Lists
-def vecDotProduct(a, b):
-    if(len(a) != len(b)):
-        raise TypeError("vecDotProduct: cannot dot product two different dimensional lists")
-
-    return sum([a[i].conjugate() * b[i] for i in range(len(a))]) * dx
-
-# Convert Vector to Unity
-def vecNormalize(vector):
-    Norm = vecDotProduct(vector, vector) ** (1/2)
-    vecNormd   = [vectorx/Norm for vectorx in vector] # this is the normalized eigenvector
-
-    return vecNormd
-
-
-#################  PREGENERATED 1S EIGENVECTOR  ###################
+#################  PREGENERATED EX3-4A RESULT  ###################
 # !!! CHECK DOCUMENTATION TO KNOW THE PARAMETERS FOR GENERATION !!!
-# !!! YOU CAN CALCULATE THE SAME RESULTS USING EX3-1.PY !!!
-Psi1S = [float(line.strip()) for line in open("ex3-1-eigenvector.dat", 'r')]
+# !!! YOU CAN CALCULATE THE SAME RESULTS USING EX3-4.PY !!!
+Ts = [tMin + dt * i for i in range(NT)]
+asT = [complex(line.strip()) for line in open("ex3-4-asT.dat", 'r')]
 
-#################  PREGENERATED EX-2 FINAL VECTOR  ###################
-# !!! CHECK DOCUMENTATION TO KNOW THE PARAMETERS FOR GENERATION !!!
-# !!! YOU CAN CALCULATE THE SAME RESULTS USING EX3-2.PY !!!
-fvecs = [complex(line.strip()) for line in open("ex3-2-vector.dat", 'r')]
+# # For integration DEBUG ONLY -- use ex3-3b.py
+# # 1/sqrt(2pi) = 0.398942280401433
+Aa = lambda t0, w: sum([e**(-1j * w * Ts[i]) * e**(-(Ts[i] - t0)**2/(2*15*15)) * asT[i] for i in range(NT)]) * dt
 
-# Process fvecs according to 
-# Psi(f) = Psi(tf) - pPsi_1s
-# where p is <Psi1s, Psitf>
-p = vecDotProduct(Psi1S, fvecs)
-PsiF = [fvecs[i] - p * Psi1S[i] for i in range(NX)]
+from math import log10
+markerws = [0.1 * (1+i) for i in range(210)]
+realws  = [marker * 0.1139083813 for marker in markerws]
+t0s = [0.2 * (1+j) for j in range(1100)]
 
-# Plane wave e^(ikx)
-for j in range(len(ks)):
-	kvec = [e**(1j * ks[j] * (xMin + i * dx)) for i in range(NX)]
-	kvec2 = vecNormalize(kvec)
-
-	#print(kvec[:5], kvec[(-5):])
-	r = abs(vecDotProduct(kvec2, PsiF))**2
-	kprojs.append(r)
-	print(r, flush=True)
+# Aas = [log10(abs(Aa(w))**2) for w in realws]
+Aas = [[log10(abs(Aa(t0, w))**2) for w in realws] for t0 in t0s]
 
 import matplotlib.pyplot as plt
 fig, ax = plt.subplots()
-ax.plot(ks, kprojs)
+# contourf(X, Y, Z)
+# len(Y) must be # of rows in Z, so rows of Z are grouped by values so
+# Z = [[value(x1, y1), value(x2, y1), ...], [value(x1, y2), ...]]
+ax.contourf(markerws, ts, Aas, cmap="coolwarm")
 plt.show()

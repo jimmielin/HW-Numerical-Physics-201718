@@ -1,6 +1,6 @@
 ####################################################################
 # Computational Physics, 2017-18 Sem1
-# HW-3 Ex-3
+# HW-3 Ex-3-3
 #
 # (c) 2017-2018 Haipeng Lin <linhaipeng@pku.edu.cn>
 # All Rights Reserved.
@@ -36,20 +36,46 @@
 ####################################################################
 
 # x range
-xM   = 600
-xMin = -xM
-xMax =  xM
-dx   = 0.1
+xMin = -2000
+xMax =  2000
+dx   =  0.1
 
-# Ansatz for eigenvalue of 1s
-offset = 0.67
+# t range
+tMin = 0
+tMax = 2066 # 2Npi/w
+dt   = 0.05  
+
+# Configure Electric Field time-dependency
+E   = lambda t: 0.0754911059705883 * (sin(0.00151877841772 * t))**2 * sin(0.151877841772 * t)
 
 ######### NO USER CONFIGURABLE OPTIONS BEYOND THIS POINT ##########
+
+####################################################################
+# UTILITY FUNCTIONS
+####################################################################
+pi = 3.141592653589793
+e  = 2.718281828459045
+
+# Float|Complex sin(Float|Complex theta)
+def sin(theta):
+    r = 0.5*(e**(1j*theta) - e**(-1j*theta))/1j
+    return (r.real if not isinstance(theta, complex) else r)
+
+# Float|Complex cos(Float|Complex theta)
+def cos(theta):
+    r = 0.5*(e**(1j*theta) + e**(-1j*theta))
+    return (r.real if not isinstance(theta, complex) else r)
+
+#################  PREGENERATED 1S EIGENVECTOR  ###################
+# !!! CHECK DOCUMENTATION TO KNOW THE PARAMETERS FOR GENERATION !!!
+# !!! YOU CAN CALCULATE THE SAME RESULTS USING EX3-1.PY !!!
+Psi1S = [float(line.strip()) for line in open("ex3-1-eigenvector-800.dat", 'r')]
 
 ###################################################################
 # Matrix Generators 
 # Most Arithmetics have been pre-computed for faster initialization.
 NX   = int((xMax - xMin)/dx)
+NT   = int((tMax - tMin)/dt)
 
 ###################################################################
 # Tridiagonal Matrix Computational Functions
@@ -127,89 +153,123 @@ def vecDotProduct(a, b):
 
     return sum([a[i].conjugate() * b[i] for i in range(len(a))]) * dx
 
+# d(t)
+def vecDTProduct(a, b):
+    return sum([a[i].conjugate() * (xMin + i * dx) * b[i] for i in range(len(a))]) * dx
+
+# a(t)
+def vecATProduct(a, b, t):
+    x = xMin + i * dx
+    return sum([a[i].conjugate() * ((-x/(x**2+1)**(3/2)) + E(t)) * b[i] for i in range(len(a))]) * dx
+
+
 # Convert Vector to Unity
 def vecNormalize(vector):
     Norm = vecDotProduct(vector, vector) ** (1/2)
+
     vecNormd   = [vectorx/Norm for vectorx in vector] # this is the normalized eigenvector
 
     return vecNormd
 
+
+
 ###################################################################
-# Step 1 - Compute Hydrogen Ground State
+# Step 2 - (2)
+# Calculate:
+#   a) \Psi_1s(x)'s time evolution to \Psi(x, t)
+#   b) P(k) = |<\Psi_k | \Psi_f>|^2 \Psi_f=\Psi(t_f)-p\Psi_1s, p=<\Psi_1s|\Psi(tf)>
+#      k \in [-1.5, 1.5]
 # Tridiag Matrix is stored as a, b, c
-# Use A - (-0.5I) as approx is -0.5
+
+# Generate Matrices and base data...
 dxISq = 1/dx**2
-diags = [(dxISq - (1 + (xMin + i * dx)**2)**(-1/2) + offset) for i in range(NX)]
 
-c = lambda i: -0.5 * dxISq
-a = lambda i: diags[i-1]
-b = lambda i: -0.5 * dxISq
+# Starting condition
+# Psi_1s is vector
+# Time evolved vectors are stored in Psis in 2-D tuple (t, [...])
+P1ss = [(0, Psi1S)]
 
-# Testing code for triMultVector & triSolve
-# testa = lambda i: 2
-# testb = lambda i: -1
-# testc = lambda i: -1
-# vectest = [1 for i in range(5)]
-# print(vectest)
-# x = triSolve(testa, testb, testc, vectest)
-# print(x)
-# v = triMultVector(testa, testb, testc, x)
-# print(v)
+# Evolve through time. Advances through timestep x, given P1s (from P1ss) in mapping (t, Psi) 2d-tuple
+# This *reconstructs* the hamiltonian because each different component must be previously
+# fully-evolved before we start the next one.
+def nextPsi(P1s):
+    Psi = P1s[1][:]
+    t   = P1s[0]
+    tp  = P1s[0] + dt/2
 
-# vectest = [1 for i in range(5)]
-# print(vectest)
-# x = triSolve(testa, testb, testc, vectest)
-# print(x)
-# v = triMultVector(testa, testb, testc, x)
-# print(v)
-# z = [0.5 + i for i in range(1, 500)]
-# print(z)
-# x = triSolve(lambda i: 2.38, lambda i: -1, lambda i: 0.392, z)
-# zz = triMultVector(lambda i: 2.38, lambda i: -1, lambda i: 0.392, x)
-# print(zz)
+    # Psi2
+    # Solve tridiagonal matrix for Psi2, where
+    # A * Psi2 = B * Psi
 
-# exit()
+    # Generators for A
+    dxISq = 1/dx**2
+    Abs = [(dxISq - 1/(1 + (xMin + i * dx)**2)**(1/2) + E(t + dt/2) * (xMin + i * dx)) * (0.5 * 1j * dt) + 1 for i in range(NX)]
 
-# Solve using inverse power method:
-# Ay_k = z_(k-1)
-#  u_k = ||y_k|| infty
-#  z_k = y_k / u_k
-# The first step is basically solving for y_k, in relation to a
-# tridiagonal matrix.
-# It can be solved using the thomas transform method ("追赶法")
-z = [1 for i in range(NX)] # Just a starting vector, bad guess...
-for i in range(1, 100):
-    y = triSolve(a, b, c, z)
-    yInftyMod = (max(-min(y), max(y))) # use abs. value
+    Ac = lambda i: -0.5 * dxISq * (0.5 * 1j * dt)
+    Aa = lambda i: Abs[i-1]
+    Ab = lambda i: -0.5 * dxISq * (0.5 * 1j * dt)
 
-    ## DIAGNOSTICS: Perform a consistency check (this is slow, remove in production)
-    # zz = triMultVector(a, b, c, y)
-    # df = [zz[i] - z[i] for i in range(len(z))]
-    # print("* diff:", max(df))
-    # print("*", end='', flush=True)
-    print(1/yInftyMod - offset, flush=True)
+    # Generators for B
+    Bbs = [(dxISq - 1/(1 + (xMin + i * dx)**2)**(1/2) + E(t + dt/2) * (xMin + i * dx)) * (-0.5 * 1j * dt) + 1 for i in range(NX)]
 
-    z = [yi/yInftyMod for yi in y]
+    Bc = lambda i: -0.5 * dxISq * (-0.5 * 1j * dt)
+    Ba = lambda i: Bbs[i-1]
+    Bb = lambda i: -0.5 * dxISq * (-0.5 * 1j * dt)
 
-print("")
-print("Lambda =", 1/yInftyMod)
-print("E0 =", 1/yInftyMod - offset)
+    # Multiply to get right-vector
+    target = triMultVector(Ba, Bb, Bc, Psi)
 
-# Get the state (z) which is an eigenvector and compute its euclidean length -- note normalization
-# PSq   = [p**2 for p in z]
-# Norm  = ((sum(PSq)) * dx) * (1/2)
-# Psi   = [zx/Norm for zx in z] # this is the normalized eigenvector
-Psi = vecNormalize(z)
-print(vecDotProduct(z, z))
-print(vecDotProduct(Psi, Psi))
+    # Solve
+    Psi2 = triSolve(Aa, Ab, Ac, target)
 
-PsiSq = [PsiX**2 for PsiX in Psi]
-xs    = [xMin + i * dx for i in range(NX)]
+    # DIAGNOSTICS: check solution stability
+    # targett = triMultVector(Aa, Ab, Ac, Psi2)
+    # offset = max([abs(targett[i] - target[i]) for i in range(len(targett))])
+    # print("* diag nextPsi: chk =", offset, flush=True)
 
-# Draw PsiSq across -x ~ x axes
-import matplotlib.pyplot as plt
-fig, ax = plt.subplots()
-ax.plot(xs, PsiSq)
-plt.show()
+    # Perform Gaussian Absorption
+    absorbXs = (xMax * 0.75)
+    for j in range(NX):
+        xAb = abs(xMin + j * dx)
+        if(xAb > absorbXs):
+            Psi2[j] = Psi2[j] * e**(-(xAb - absorbXs)**2/(0.2)**2)
 
-print(Psi)
+    return (P1s[0] + dt, vecNormalize(Psi2))
+
+# For debugging only: Echoes some debug information for given tuple (t, Psi)
+def debugP1s(P1s):
+    Psi = P1s[1]
+    print("t =", P1s[0], "Psi excerpt:", Psi[0:3], "...", Psi[(-4):])
+
+currT = 0
+# P1sT = [abs(vecDotProduct(P1ss[0][1], P1ss[-1][1]))**2] # 布居数随时间的演化
+dsT = []
+asT = []
+
+Psi = (0, Psi1S)
+
+fdsT = open("ex3-3-dsT.dat", "w")
+fasT = open("ex3-3-asT.dat", "w")
+
+for i in range(1, NT):
+    Psi = nextPsi(Psi)
+    # debugP1s(P1ss[-1])
+    # Dot product to get the result...
+    # P1sT.append(abs(vecDotProduct(P1ss[0][1], P1ss[-1][1]))**2)
+    d = vecDTProduct(Psi[1], Psi[1]).__str__()
+    a = vecATProduct(Psi[1], Psi[1], Psi[0]).__str__()
+    fdsT.write(d + "\n")
+    fasT.write(a + "\n")
+
+    print(d, a)
+
+# import matplotlib.pyplot as plt
+# fig, ax = plt.subplots()
+# ts = [0 + i * dt for i in range(NT)]
+# ax.plot(ts, P1sT)
+# plt.show()
+
+fdsT.close()
+fasT.close()
+
+# For integration, check ex3-3a.py

@@ -42,7 +42,7 @@ dx   =     0.1
 
 # t range
 tMin = 0
-tMax = 200 # 2Npi/w
+tMax = 125.6 # 2Npi/w
 dt   = 0.05  
 
 # Configure Electric Field time-dependency
